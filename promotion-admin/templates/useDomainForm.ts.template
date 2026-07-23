@@ -1,0 +1,313 @@
+/**
+ * 목적지: src/app/memberPromotion/hooks/use{Domain}Form.ts
+ *
+ * 치환:
+ *   {Domain}          = PascalCase   (예: WelcomeBenefit)
+ *   {DOMAIN_SNAKE}    = SNAKE_CASE   (예: WELCOME_BENEFIT)
+ *   {한글 도메인}     = 사용자 노출 문구
+ *
+ * 도메인 특수성에 따라 아래를 조정:
+ *   - 노출 기간 (A/B): 시작일만이면 endDate/setEndDate 삭제, isFormValid에서 endDate 검사 제거,
+ *                       validatePromotionPeriod 호출 스킵, meta 저장 시 endDate=''로 세팅
+ *   - 이미지 필드 수: 0개면 file 관련 state/handler·업로드 로직 삭제, 2개 이상이면 접미어 붙여 복제
+ *   - 데이터 모델: TODO 부분에 실제 필드/변환 로직 삽입
+ */
+import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
+import { useHistory } from 'react-router-dom';
+
+import { dayjs } from 'shared/utils/dayjsUtils';
+import useSnackbarMessage from 'shared/utils/snackbar';
+import { PATH } from 'shared/lib/menu/path';
+import {
+  RES_WEB_BASE,
+  {DOMAIN_SNAKE}_IMAGE_BASE,
+  {DOMAIN_SNAKE}_JSON_BASE,
+  {DOMAIN_SNAKE}_JSON_META_PATH,
+  RES_WEB_{DOMAIN_SNAKE}_PATH,
+} from 'app/memberPromotion/constants/pathConstant';
+import {
+  formatDateToISO,
+  getVersionFromDate,
+  validatePromotionPeriod,
+} from 'app/memberPromotion/utils/dateUtil';
+import { uploadToS3, createJsonFile } from 'app/memberPromotion/utils/uploadUtil';
+
+import { use{Domain}Meta, use{Domain}Version, {Domain}VersionData } from './use{Domain}Query';
+
+// TODO: 이미지 크기가 다르면 값 교체. 이미지 0개면 이 상수 삭제.
+const DEFAULT_IMAGE_WIDTH = 375;
+const DEFAULT_IMAGE_HEIGHT = 414;
+
+const DEFAULT_VERSION_NAME = 'default';
+
+/**
+ * {한글 도메인} 생성/수정 폼 공통 로직
+ *
+ * - 상시운영 버전 등록/수정: isDefaultMode = true
+ * - 프로모션 발행:  editVersion 없이 호출
+ * - 프로모션 수정:  editVersion 전달
+ */
+export function use{Domain}Form({
+  editVersion,
+  isDefaultMode = false,
+}: {
+  editVersion?: string;
+  isDefaultMode?: boolean;
+} = {}) {
+  const isEditMode = !!editVersion;
+  const history = useHistory();
+  const snackbar = useSnackbarMessage();
+  const fileInputRef = useRef<HTMLInputElement>(null); // TODO: 이미지 필드 개수에 맞춰 조정
+
+  const { data: existingMeta } = use{Domain}Meta();
+  const defaultEditVersion = isDefaultMode ? existingMeta?.defaultVersion || DEFAULT_VERSION_NAME : undefined;
+  const targetEditVersion = editVersion || defaultEditVersion || '';
+  const { data: versionData, isError: isVersionError } = use{Domain}Version(targetEditVersion);
+
+  // ── 폼 상태 (도메인 모델에 맞춰 교체) ──
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null); // TODO: 노출 정책 B면 삭제
+
+  // TODO: 아래 예시 필드는 실제 도메인 필드로 교체
+  // const [couponText, setCouponText] = useState('');
+  // const [buttonTitle, setButtonTitle] = useState('');
+  // const [buttonLink, setButtonLink] = useState('');
+
+  // ── 파일 업로드 상태 (이미지 0개면 이 블록 전체 삭제) ──
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState('');
+
+  // ── 진행 상태 ──
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [isLoadingVersion, setIsLoadingVersion] = useState(false);
+
+  // ── 버전 관리 상태 ──
+  const [defaultVersion, setDefaultVersion] = useState('');
+
+  /** 기존 상시운영 버전이 존재하는지 */
+  const hasExistingDefault = !!existingMeta?.defaultVersion;
+
+  /** 버전 데이터 로드 시 폼 프리필 */
+  useEffect(() => {
+    if (!versionData) return;
+    if (!(isDefaultMode && hasExistingDefault) && !isEditMode) return;
+
+    // TODO: 도메인 모델 필드에 맞춰 setter 호출
+    // setUploadedImageUrl(versionData.signupCouponImage.url);
+    // setButtonTitle(versionData.signupLinkButton.title);
+    // setButtonLink(versionData.signupLinkButton.link);
+    // setCouponText(versionData.loginCouponText);
+  }, [isEditMode, isDefaultMode, hasExistingDefault, versionData]);
+
+  /** meta.json 조회 후 버전 정보 세팅 */
+  useEffect(() => {
+    if (!existingMeta) return;
+    setDefaultVersion(existingMeta.defaultVersion);
+
+    if (isEditMode && editVersion) {
+      const versionDate = existingMeta.versions[editVersion];
+      if (versionDate) {
+        setStartDate(versionDate.startDate ? dayjs(versionDate.startDate).toDate() : null);
+        setEndDate(versionDate.endDate ? dayjs(versionDate.endDate).toDate() : null); // TODO: 정책 B면 삭제
+      }
+    }
+  }, [existingMeta, isEditMode, isDefaultMode, editVersion]);
+
+  /** 시작일 기준으로 생성되는 버전명 */
+  const newVersion = useMemo(() => {
+    if (isDefaultMode) return DEFAULT_VERSION_NAME;
+    return getVersionFromDate(startDate);
+  }, [isDefaultMode, startDate]);
+
+  // ── 파일 핸들러 (이미지 0개면 삭제) ──
+  const handleFileSelect = () => fileInputRef.current?.click();
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    setSelectedFile(file);
+    if (file) setUploadedImageUrl('');
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile || !newVersion) return;
+    setIsUploading(true);
+    try {
+      const fileName = `${{DOMAIN_SNAKE}_IMAGE_BASE}/${newVersion}/${selectedFile.name}`;
+      await uploadToS3({ file: selectedFile, path: fileName });
+
+      setUploadedImageUrl(`${RES_WEB_BASE}/${fileName}`);
+      snackbar.success('이미지 업로드가 완료되었습니다.');
+
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (error) {
+      console.error('[{한글 도메인}] 이미지 업로드 실패:', error);
+      snackbar.error('이미지 업로드에 실패했습니다.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  /** 콘텐츠 필드 유효성 (도메인 모델에 맞춰 교체) */
+  const isContentValid = uploadedImageUrl; // TODO
+  //   && couponText.trim() && buttonTitle.trim() && buttonLink.trim();
+
+  /** 발행/저장 버튼 활성화 조건 */
+  const isFormValid = isDefaultMode
+    ? !!isContentValid
+    : !!(
+        isContentValid &&
+        startDate &&
+        dayjs(startDate).isValid() &&
+        endDate && // TODO: 정책 B면 endDate 검사 삭제
+        dayjs(endDate).isValid() &&
+        defaultVersion
+      );
+
+  /** 입력한 기간이 기존 프로모션과 겹치는지 검사 */
+  const hasOverlappingPeriod = (): boolean => {
+    if (isDefaultMode || !startDate || !endDate || !existingMeta) return false;
+    const newStart = dayjs(startDate);
+    const newEnd = dayjs(endDate);
+
+    return Object.entries(existingMeta.versions).some(([version, period]) => {
+      if (isEditMode && version === editVersion) return false;
+      const existingStart = dayjs(period.startDate);
+      const existingEnd = dayjs(period.endDate);
+      return newStart.isBefore(existingEnd) && newEnd.isAfter(existingStart);
+    });
+  };
+
+  /** 프로모션 발행/수정 */
+  const handlePublish = async () => {
+    if (!isFormValid) return;
+
+    if (!isDefaultMode) {
+      const periodValidation = validatePromotionPeriod({ startDate, endDate }); // TODO: 정책 B면 endDate 인자 조정
+      if (!periodValidation.isValid) {
+        snackbar.error(periodValidation.message);
+        return;
+      }
+
+      if (hasOverlappingPeriod()) {
+        snackbar.error('프로모션 기간이 다른 프로모션과 겹칩니다.');
+        return;
+      }
+    }
+
+    let targetVersion: string;
+    if (isDefaultMode) {
+      targetVersion = DEFAULT_VERSION_NAME;
+    } else if (isEditMode) {
+      targetVersion = editVersion!;
+    } else {
+      targetVersion = newVersion;
+    }
+
+    setIsPublishing(true);
+    try {
+      const versionJsonData: {Domain}VersionData = {
+        title: '{한글 도메인} 관리',
+        description: '{한글 도메인} 관리에 사용되는 json',
+        // TODO: 실제 도메인 필드 값 세팅
+        // signupCouponImage: { url: uploadedImageUrl, width: DEFAULT_IMAGE_WIDTH, height: DEFAULT_IMAGE_HEIGHT },
+        // signupLinkButton: { title: buttonTitle.trim(), link: buttonLink.trim() },
+        // loginCouponText: couponText.trim(),
+      };
+
+      await uploadToS3({
+        file: createJsonFile(versionJsonData, `${targetVersion}.json`),
+        path: `${{DOMAIN_SNAKE}_JSON_BASE}/${targetVersion}.json`,
+      });
+
+      const updatedVersions = { ...(existingMeta?.versions || {}) };
+      if (!isDefaultMode) {
+        updatedVersions[targetVersion] = {
+          startDate: formatDateToISO(startDate),
+          endDate: formatDateToISO(endDate), // TODO: 정책 B면 항상 ''
+        };
+      }
+
+      const metaData = {
+        title: '{한글 도메인} 메타 데이터 관리',
+        versions: updatedVersions,
+        defaultVersion: isDefaultMode ? targetVersion : defaultVersion,
+      };
+
+      await uploadToS3({
+        file: createJsonFile(metaData, 'meta.json'),
+        path: {DOMAIN_SNAKE}_JSON_META_PATH,
+      });
+
+      const modeLabel = isDefaultMode ? '상시운영 버전' : '프로모션';
+      const actionLabel = isEditMode || (isDefaultMode && hasExistingDefault) ? '수정' : '발행';
+      snackbar.success(`${modeLabel}이 ${actionLabel}되었습니다.`);
+      history.push(PATH.{DOMAIN_SNAKE}_PROMOTION);
+    } catch (error) {
+      const modeLabel = isDefaultMode ? '상시운영 버전' : '프로모션';
+      const actionLabel = isEditMode || (isDefaultMode && hasExistingDefault) ? '수정' : '발행';
+      console.error(`[{한글 도메인}] ${actionLabel} 실패:`, error);
+      snackbar.error(`${modeLabel} ${actionLabel}에 실패했습니다.`);
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const handleGoBack = () => {
+    history.push(PATH.{DOMAIN_SNAKE}_PROMOTION);
+  };
+
+  /** 기존 프로모션 버전의 콘텐츠를 폼에 바인딩 (기간 제외) */
+  const loadVersionData = useCallback(
+    async (version: string) => {
+      setIsLoadingVersion(true);
+      try {
+        const { data } = await axios.get<{Domain}VersionData>(`${RES_WEB_{DOMAIN_SNAKE}_PATH}/${version}.json`);
+        // TODO: 도메인 모델 필드로 setter 호출
+        // setUploadedImageUrl(data.signupCouponImage.url);
+        // setButtonTitle(data.signupLinkButton.title);
+        // setButtonLink(data.signupLinkButton.link);
+        // setCouponText(data.loginCouponText);
+        snackbar.success(`${version} 버전의 데이터를 불러왔습니다.`);
+      } catch (error) {
+        console.error('[{한글 도메인}] 버전 데이터 불러오기 실패:', error);
+        snackbar.error('프로모션 데이터를 불러오는데 실패했습니다.');
+      } finally {
+        setIsLoadingVersion(false);
+      }
+    },
+    [snackbar],
+  );
+
+  return {
+    isEditMode,
+    isDefaultMode,
+    hasExistingDefault,
+    existingMeta,
+    versionData,
+    isVersionError,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
+    // TODO: 도메인 필드 exposure
+    fileInputRef,
+    selectedFile,
+    isUploading,
+    uploadedImageUrl,
+    newVersion,
+    defaultVersion,
+    setDefaultVersion,
+    isPublishing,
+    isLoadingVersion,
+    isFormValid,
+    handleFileSelect,
+    handleFileChange,
+    handleUpload,
+    handlePublish,
+    handleGoBack,
+    loadVersionData,
+  };
+}

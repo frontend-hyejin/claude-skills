@@ -1,0 +1,155 @@
+/**
+ * 목적지: src/app/memberPromotion/pages/{domain}/{Domain}PromotionListPage.tsx
+ *
+ * 치환:
+ *   {Domain}          = PascalCase   (예: WelcomeBenefit)
+ *   {DOMAIN_SNAKE}    = SNAKE_CASE   (예: WELCOME_BENEFIT)
+ *   {한글 도메인}     = 페이지 제목·라벨 (예: 첫 구매 프로모션)
+ *
+ * 노출 기간 정책 B(시작일만)면 아래 두 부분을 교체:
+ *   - period 컬럼: `${startDate}` 만 렌더링 or 종료일 계산 로직
+ *   - getVersionStatus → 로컬 helper (다음 버전 시작일 기준 종료 계산)
+ */
+import React, { useState, useMemo } from 'react';
+import { Chip } from '@material-ui/core';
+import { useHistory } from 'react-router-dom';
+
+import { PATH } from 'shared/lib/menu/path';
+import ListTemplate from 'shared/atomic/templates/ListTemplate';
+import Table from 'shared/atomic/organisms/Table/Table';
+import Button from 'shared/atomic/atoms/Button';
+import { Column, ColumnRenderMap } from 'shared/atomic/organisms/Table/types';
+
+import { use{Domain}Meta, {Domain}Meta } from '../../hooks/use{Domain}Query';
+import { getVersionStatus, STATUS_LABEL } from '../../utils/versionUtil';
+
+type VersionRow = {
+  version: string;
+  meta: {Domain}Meta;
+};
+
+const DEFAULT_PAGE_SIZE = 20;
+
+const PROMO_COLUMNS: Column[] = [
+  { id: 'version', label: '버전' },
+  { id: 'status', label: '상태' },
+  { id: 'period', label: '프로모션 기간' },
+];
+
+function {Domain}PromotionListPage() {
+  const history = useHistory();
+  const { data: meta, isLoading } = use{Domain}Meta();
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+
+  const defaultVersion = meta?.defaultVersion || '';
+  const hasDefault = !!defaultVersion;
+
+  const allTableData: VersionRow[] = useMemo(() => {
+    if (!meta?.versions) return [];
+    return Object.keys(meta.versions)
+      .sort()
+      .reverse()
+      .map((version) => ({ version, meta }));
+  }, [meta]);
+
+  const pagedData = useMemo(
+    () => allTableData.slice(currentPage * pageSize, (currentPage + 1) * pageSize),
+    [allTableData, currentPage, pageSize],
+  );
+
+  const columnRenderMap: ColumnRenderMap<VersionRow> = {
+    version: (row) => (
+      <button
+        type="button"
+        className="cursor-pointer border-0 bg-transparent p-0 text-blue-600 underline"
+        onClick={() => history.push(PATH.{DOMAIN_SNAKE}_PROMOTION_DETAIL.replace(':version', row.version))}
+      >
+        {row.version}
+      </button>
+    ),
+    status: (row) => {
+      const status = getVersionStatus(row.version, row.meta);
+      const statusInfo = STATUS_LABEL[status];
+      return <Chip label={statusInfo.label} color={statusInfo.color} size="small" />;
+    },
+    period: (row) => {
+      const versionDate = row.meta.versions[row.version];
+      return versionDate ? `${versionDate.startDate} ~ ${versionDate.endDate}` : '-';
+      // 정책 B면 위 라인을 아래로 교체:
+      // return versionDate?.startDate ? `${versionDate.startDate} ~` : '-';
+    },
+  };
+
+  return (
+    <ListTemplate
+      menuTitle="{한글 도메인}"
+      pageTitle="목록"
+      dataTable={
+        <div className="flex flex-col gap-6">
+          <div className="rounded border border-gray-300 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="m-0 text-base font-bold">상시운영 버전</h3>
+              <Button
+                variant={hasDefault ? 'outlined' : 'contained'}
+                color="primary"
+                size="small"
+                onClick={() => history.push(PATH.{DOMAIN_SNAKE}_PROMOTION_DEFAULT)}
+              >
+                {hasDefault ? '수정' : '등록'}
+              </Button>
+            </div>
+            {hasDefault ? (
+              <div className="flex items-center gap-3">
+                <Chip label={defaultVersion} size="small" variant="outlined" />
+                <span className="text-sm text-gray-500">프로모션 기간 외 적용되는 기본 버전</span>
+              </div>
+            ) : (
+              <p className="m-0 text-sm text-gray-500">
+                상시운영 버전을 먼저 등록해주세요. 상시운영 버전이 있어야 프로모션 발행이 가능합니다.
+              </p>
+            )}
+          </div>
+
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="m-0 text-base font-bold">프로모션 목록</h3>
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                onClick={() => history.push(PATH.{DOMAIN_SNAKE}_PROMOTION_CREATE)}
+                disabled={!hasDefault}
+              >
+                신규 발행
+              </Button>
+            </div>
+            <Table>
+              <Table.Head columns={PROMO_COLUMNS} />
+              <Table.Body
+                columns={PROMO_COLUMNS}
+                data={pagedData}
+                columnRenderMap={columnRenderMap}
+                rowKey={(row) => row.version}
+                isLoading={isLoading}
+                emptyText="발행된 프로모션이 없습니다."
+              />
+            </Table>
+            <Table.Pagination
+              count={allTableData.length}
+              page={currentPage}
+              rowsPerPage={pageSize}
+              onChangePage={setCurrentPage}
+              onChangeRowsPerPage={(size) => {
+                setPageSize(size);
+                setCurrentPage(0);
+              }}
+            />
+          </div>
+        </div>
+      }
+    />
+  );
+}
+
+export default {Domain}PromotionListPage;

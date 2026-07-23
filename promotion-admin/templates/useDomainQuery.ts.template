@@ -1,0 +1,76 @@
+/**
+ * 목적지: src/app/memberPromotion/hooks/use{Domain}Query.ts
+ *
+ * 치환:
+ *   {Domain}          = PascalCase        (예: WelcomeBenefit)
+ *   {domain-kebab}    = URL/queryKey용    (예: welcome-benefit)
+ *   {DOMAIN_SNAKE}    = pathConstant 접두어 (예: WELCOME_BENEFIT)
+ *   {한글 도메인}     = 주석/에러 로그용   (예: 첫 구매 프로모션)
+ *
+ * 노출 기간 정책:
+ *   (A) 시작+종료일  → VersionDate 그대로 사용
+ *   (B) 시작일만     → endDate 필드 제거 or 항상 '' 로 저장. 아래에 주석으로 표시.
+ */
+import axios from 'axios';
+import { useQuery } from '@tanstack/react-query';
+
+import { RES_WEB_{DOMAIN_SNAKE}_PATH } from 'app/memberPromotion/constants/pathConstant';
+
+/** 버전별 프로모션 기간 */
+export type VersionDate = {
+  startDate: string;
+  endDate: string; // 노출 정책 (B)일 경우 항상 '' 저장. 필드 자체는 유지해 컬리몰 호환.
+};
+
+/** meta.json 응답 타입 */
+export type {Domain}Meta = {
+  versions: Record<string, VersionDate>;
+  defaultVersion: string;
+};
+
+/**
+ * 버전별 JSON 응답 타입
+ *
+ * TODO: 도메인 데이터 모델 필드로 교체.
+ * 예시는 첫구매 스타일 (image + text + link)
+ */
+export type {Domain}VersionData = {
+  title: string;
+  description: string;
+  // === 예시 필드. 실제 도메인 모델로 교체 ===
+  // signupCouponImage: { url: string; width: number; height: number };
+  // signupLinkButton: { title: string; link: string };
+  // loginCouponText: string;
+};
+
+/** meta.json 조회 */
+const fetchMeta = async (): Promise<{Domain}Meta> => {
+  const { data } = await axios.get(`${RES_WEB_{DOMAIN_SNAKE}_PATH}/meta.json`);
+  return {
+    versions: data.versions || {},
+    defaultVersion: data.defaultVersion || '',
+  };
+};
+
+/** 버전별 프로모션 JSON 조회 */
+const fetchVersion = async (version: string): Promise<{Domain}VersionData> => {
+  const { data } = await axios.get(`${RES_WEB_{DOMAIN_SNAKE}_PATH}/${version}.json`);
+  return data;
+};
+
+/** {한글 도메인} meta.json 조회 훅 */
+export function use{Domain}Meta() {
+  return useQuery({
+    queryKey: ['promotion', '{domain-kebab}', 'meta'],
+    queryFn: fetchMeta,
+  });
+}
+
+/** {한글 도메인} 버전별 상세 데이터 조회 훅 */
+export function use{Domain}Version(version: string) {
+  return useQuery({
+    queryKey: ['promotion', '{domain-kebab}', version],
+    queryFn: () => fetchVersion(version),
+    enabled: !!version,
+  });
+}

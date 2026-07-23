@@ -1,0 +1,82 @@
+/**
+ * 목적지: src/app/memberPromotion/pages/{domain}/{Domain}DefaultVersionPage.tsx
+ *
+ * 상시운영 버전 (프로모션 기간 밖에도 항상 노출되는 fallback 데이터) 등록/수정 페이지.
+ *
+ * 치환:
+ *   {Domain}    = PascalCase   (예: WelcomeBenefit)
+ *   {한글 도메인} = 페이지 제목  (예: 첫 구매 프로모션)
+ *
+ * 도메인 필드는 use{Domain}Form에서 노출한 상태/setter로 채우세요.
+ * 이미지 필드가 0개면 <ImageUploadField> 블록 삭제.
+ */
+import React from 'react';
+
+import DetailTemplate from 'shared/atomic/templates/DetailTemplate';
+import Form from 'shared/atomic/organisms/Form';
+import FormTextField from 'shared/atomic/molecules/FormTextField';
+
+import { use{Domain}Form } from '../../hooks/use{Domain}Form';
+import ImageUploadField from '../../components/ImageUploadField';
+
+function {Domain}DefaultVersionPage() {
+  const form = use{Domain}Form({ isDefaultMode: true });
+
+  const pageTitle = form.hasExistingDefault ? '상시운영 버전 수정' : '상시운영 버전 등록';
+  const submitLabel = form.hasExistingDefault ? '저장' : '등록';
+
+  return (
+    <DetailTemplate menuTitle="{한글 도메인}" pageTitle={pageTitle}>
+      <Form
+        onSubmit={(e) => {
+          e.preventDefault();
+          form.handlePublish();
+        }}
+      >
+        {/* TODO: 도메인 필드에 맞춰 Form.Section 구성.
+            아래는 첫구매 예시 - couponText / image / buttonTitle / buttonLink */}
+
+        <Form.Section title="예시 섹션 1">
+          <FormTextField
+            id="fieldName"
+            label="한글 라벨"
+            required
+            labelWidth={120}
+            value={/* form.someField */ ''}
+            onChange={(e) => {
+              /* form.setSomeField(e.target.value) */
+              e.preventDefault();
+            }}
+            placeholder="예시"
+          />
+        </Form.Section>
+
+        {/* 이미지 필드가 있는 경우: */}
+        <Form.Section title="예시 섹션 2">
+          <ImageUploadField
+            id="image"
+            label="이미지"
+            fileInputRef={form.fileInputRef}
+            selectedFile={form.selectedFile}
+            isUploading={form.isUploading}
+            uploadedImageUrl={form.uploadedImageUrl}
+            uploadDisabled={!form.newVersion}
+            onFileSelect={form.handleFileSelect}
+            onFileChange={form.handleFileChange}
+            onUpload={form.handleUpload}
+            helperText="이미지 사이즈: {WIDTH} x {HEIGHT}px / 파일 형식: png, jpg, jpeg"
+          />
+        </Form.Section>
+
+        <Form.Actions
+          submitLabel={form.isPublishing ? '저장 중...' : submitLabel}
+          cancelLabel="목록"
+          onCancel={form.handleGoBack}
+          disabled={!form.isFormValid || form.isPublishing}
+        />
+      </Form>
+    </DetailTemplate>
+  );
+}
+
+export default {Domain}DefaultVersionPage;

@@ -1,0 +1,109 @@
+/**
+ * 목적지: src/app/memberPromotion/pages/{domain}/{Domain}PromotionDetailPage.tsx
+ *
+ * 기존 프로모션 버전 상세/수정 페이지. URL 파라미터의 :version으로 프리필.
+ *
+ * 치환:
+ *   {Domain}    = PascalCase   (예: WelcomeBenefit)
+ *   {한글 도메인} = 페이지 제목  (예: 첫 구매 프로모션)
+ *
+ * Create 페이지와 거의 동일하나 아래가 다름:
+ *   - editVersion을 전달 (useParams)
+ *   - 존재하지 않는 버전에 대한 error 처리
+ *   - "프로모션 불러오기" 버튼 없음
+ */
+import React from 'react';
+import { useParams } from 'react-router-dom';
+
+import DetailTemplate from 'shared/atomic/templates/DetailTemplate';
+import Form from 'shared/atomic/organisms/Form';
+import FormTextField from 'shared/atomic/molecules/FormTextField';
+import FormDateRangePickerField from 'shared/atomic/molecules/FormDateRangePickerField/FormDateRangePickerField';
+
+import { use{Domain}Form } from '../../hooks/use{Domain}Form';
+import ImageUploadField, {
+  IMAGE_UPLOAD_GUIDE_REQUIRE_START_DATE,
+} from '../../components/ImageUploadField';
+
+function {Domain}PromotionDetailPage() {
+  const { version } = useParams<{ version: string }>();
+  const form = use{Domain}Form({ editVersion: version });
+
+  return (
+    <DetailTemplate menuTitle="{한글 도메인}" pageTitle={`프로모션 상세 (${version})`}>
+      {form.isVersionError && (
+        <div className="py-10 text-center text-gray-500">해당 버전의 데이터를 조회할 수 없습니다.</div>
+      )}
+
+      {form.versionData && (
+        <Form
+          onSubmit={(e) => {
+            e.preventDefault();
+            form.handlePublish();
+          }}
+        >
+          <Form.Section title="프로모션 기간">
+            <div style={{ maxWidth: 500 }}>
+              {/* 정책 B면 FormDatePickerField로 교체 */}
+              <FormDateRangePickerField
+                id="promotionPeriod"
+                label="기간"
+                required
+                labelWidth={120}
+                startDate={form.startDate}
+                endDate={form.endDate}
+                setStartDate={form.setStartDate}
+                setEndDate={form.setEndDate}
+                unit="minutes"
+                filterButtons={[]}
+              />
+            </div>
+          </Form.Section>
+
+          {/* TODO: 도메인 필드 Form.Section (Create 페이지와 동일) */}
+
+          <Form.Section title="예시 이미지 섹션">
+            <ImageUploadField
+              id="image"
+              label="이미지"
+              fileInputRef={form.fileInputRef}
+              selectedFile={form.selectedFile}
+              isUploading={form.isUploading}
+              uploadedImageUrl={form.uploadedImageUrl}
+              uploadDisabled={!form.newVersion}
+              helperText={
+                !form.newVersion
+                  ? IMAGE_UPLOAD_GUIDE_REQUIRE_START_DATE
+                  : '이미지 사이즈: {WIDTH} x {HEIGHT}px / 파일 형식: png, jpg, jpeg'
+              }
+              onFileSelect={form.handleFileSelect}
+              onFileChange={form.handleFileChange}
+              onUpload={form.handleUpload}
+            />
+            <FormTextField
+              id="fieldName"
+              label="한글 라벨"
+              required
+              labelWidth={120}
+              value={/* form.someField */ ''}
+              onChange={(e) => {
+                /* form.setSomeField(e.target.value) */
+                e.preventDefault();
+              }}
+              placeholder="예시"
+            />
+          </Form.Section>
+
+          <Form.Actions
+            submitLabel={form.isPublishing ? '저장 중...' : '저장'}
+            cancelLabel="목록"
+            onCancel={form.handleGoBack}
+            disabled={!form.isFormValid || form.isPublishing}
+          />
+        </Form>
+      )}
+    </DetailTemplate>
+  );
+}
+
+export default {Domain}PromotionDetailPage;
