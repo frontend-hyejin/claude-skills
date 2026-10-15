@@ -7,6 +7,12 @@
  *   {fileName}       = JSON 파일명(확장자 제외) (예: nowMainBanners)
  *   {한글 도메인}     = 주석용                 (예: 컬리나우 배너)
  *
+ *   {항목} / {소비처} / {WIDTH} / {HEIGHT} = 운영 정책 섹션용 (예: 배너 / 컬리나우 / 640 / 240)
+ *
+ * S3 경로 상수 + 운영 정책 상수(최대 개수·안내 문구·이미지 제약)를 한 파일에 둔다.
+ * (컬리나우 배너관리는 bannerPolicy.ts 로 분리돼 있지만 새 도메인은 이 파일 하나로)
+ * 기획서 값으로 교체: 최대 개수 / 권장 규격 / 최대 용량. 최대 개수 정책이 없으면 MAX_* 3개 삭제. 상시 노출이 없으면 ALWAYS_ON_LABEL 삭제.
+ *
  * 파일명은 환경과 무관하게 하나만 사용. 환경 분리는 버킷(res-dev / res-stg / res)이 담당하므로
  * `_dev` 같은 환경별 접미어를 붙이지 말 것 (컬리나우 배너관리의 `_dev` 분기는 따라 하지 않음).
  */
@@ -29,3 +35,58 @@ export const {DOMAIN_SNAKE}_JSON_PATH = `json/{resource-dir}/${{DOMAIN_SNAKE}_FI
  * 예) https://res-dev.kurly.com/web/json/{resource-dir}/{fileName}.json
  */
 export const RES_WEB_{DOMAIN_SNAKE}_PATH = `${RES_WEB_BASE}/${{DOMAIN_SNAKE}_JSON_PATH}`;
+
+// ───────── 운영 정책 ─────────
+
+/** 등록 가능한 {항목} 최대 개수 */
+export const MAX_{DOMAIN_SNAKE}_COUNT = 50;
+
+/** 최대 개수에 도달해 [{항목} 등록]이 막혔을 때의 딤 색상 */
+export const {DOMAIN_SNAKE}_BUTTON_DISABLED_COLOR = '#c5c8dd';
+
+/** 저장 직전 재조회에서 상한을 넘겼을 때 안내 */
+export const MAX_{DOMAIN_SNAKE}_COUNT_SAVE_ERROR = `등록 가능한 {항목} ${MAX_{DOMAIN_SNAKE}_COUNT}개를 모두 사용 중입니다. 다른 담당자가 먼저 등록했을 수 있으니 목록을 확인해 주세요.`;
+
+/** 최대 개수에 도달해 [{항목} 등록]이 막혔을 때 노출하는 툴팁 */
+export const MAX_{DOMAIN_SNAKE}_COUNT_TOOLTIP = `등록 가능한 {항목}은 최대 ${MAX_{DOMAIN_SNAKE}_COUNT}개입니다. 사용하지 않는 {항목}을 삭제한 후 등록해 주세요.`;
+
+/** 목록 상단 안내 */
+export const {DOMAIN_SNAKE}_LIST_GUIDE =
+  '{항목}은 목록에 표시된 순서대로 노출되며, 노출기간에 해당하는 {항목}만 {소비처}에 표시됩니다.';
+
+/** 상태 필터가 전체 선택이 아닐 때 노출하는 순서 변경 제약 안내 */
+export const REORDER_DISABLED_GUIDE =
+  '상태 필터가 ‘전체’가 아니면 순서 이동 버튼이 비활성화됩니다. 표시된 노출순서는 화면에 보이는 {항목} 기준 번호이므로 실제 노출 순서와 다를 수 있습니다.';
+
+/** 선택 상태가 유지되지 않는 조건 안내 */
+export const SELECTION_RESET_GUIDE = '필터 변경 시 선택 해제';
+
+/** 삭제 확인 모달 하단 안내 */
+export const DELETE_CONFIRM_GUIDE = '삭제한 {항목}은 복구할 수 없고, 이후 {항목}의 노출순서가 당겨집니다.';
+
+/** 노출위치 입력 안내 */
+export const POSITION_GUIDE = '숫자만 입력 · 전체 목록(종료 {항목} 포함) 기준 위치';
+
+/** 허용 이미지 확장자 */
+export const IMAGE_ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg'];
+
+/** 권장 이미지 규격 */
+export const IMAGE_RECOMMENDED_SIZE = '{WIDTH} × {HEIGHT}px';
+
+/** 이미지 최대 용량(KB) (업로드 API에는 용량 제한이 없어 어드민에서만 막음) */
+export const IMAGE_MAX_SIZE_KB = 350;
+
+/** 이미지 업로드 안내 */
+export const IMAGE_GUIDE = `파일 형식: ${IMAGE_ALLOWED_EXTENSIONS.join(
+  ', ',
+)} · 권장 규격 ${IMAGE_RECOMMENDED_SIZE} / ${IMAGE_MAX_SIZE_KB}KB 이하`;
+
+/** 허용하지 않는 파일을 선택했을 때 안내 */
+export const IMAGE_EXTENSION_ERROR = `${IMAGE_ALLOWED_EXTENSIONS.join(', ')} 형식의 이미지만 업로드할 수 있습니다.`;
+export const IMAGE_SIZE_ERROR = `이미지 용량은 ${IMAGE_MAX_SIZE_KB}KB 이하여야 합니다.`;
+
+/** 종료일 없음 체크박스 라벨 */
+export const ALWAYS_ON_LABEL = '종료일 없음(상시 노출)';
+
+/** 등록/수정 화면 이탈 확인 */
+export const LEAVE_CONFIRM_GUIDE = '입력한 내용이 저장되지 않습니다. 목록으로 이동할까요?';

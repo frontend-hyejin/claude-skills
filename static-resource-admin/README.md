@@ -9,13 +9,15 @@ LaCMS 어드민에 **S3 정적 JSON을 읽고 쓰는 메뉴**를 스캐폴딩하
 
 | 패턴 | 데이터 모양 | 페이지 | 기존 예시 |
 |---|---|---|---|
-| **버전형** (versioned) | `meta.json` + `{YYYYMMDD}.json` + 상시운영 `default`. 기간마다 콘텐츠 세트 전체가 바뀜 | List · Default · Create · Detail | 첫구매 / 친구초대 회원가입 / 친구초대 더블적립금 / (V)VIP 제도 안내 |
-| **목록형** (collection) | JSON 하나에 항목 배열 `{ id, data: [] }`. 여러 항목이 동시에 노출되고 항목마다 순서·개별 기간 | List · Form(등록/수정 공용) | 컬리나우 배너관리 |
+| **버전형** (versioned) | `meta.json` + `{YYYYMMDD}.json` + 상시운영 `default`. 기간마다 콘텐츠 세트 전체가 바뀜 | List · Default · Create · Detail | [첫구매](https://lacms2.stg.kurlycorp.kr/user/promotion/welcome-benefit) / [친구초대 회원가입](https://lacms2.stg.kurlycorp.kr/user/promotion/invite-friend-signup) / [친구초대 더블적립금](https://lacms2.stg.kurlycorp.kr/user/promotion/invite-friend) / [(V)VIP 제도 안내](https://lacms2.stg.kurlycorp.kr/user/promotion/vip-membership) |
+| **목록형** (collection) | JSON 하나에 항목 배열 `{ id, data: [] }`. 여러 항목이 동시에 노출되고 항목마다 순서·개별 기간 | List · Form(등록/수정 공용) | [컬리나우 배너관리](https://lacms2.stg.kurlycorp.kr/promotion/now-main-banner) |
+
+기존 예시 링크는 LaCMS stg 환경입니다.
 
 생성 범위:
 - **메뉴/라우팅 등록** — `constants.ts`, `path.ts`, `fixtures.ts`, `managerRest.ts`, 해당 Router
 - **S3 경로 상수** — `pathConstant.ts`
-- **데이터 레이어** — 버전형: React Query 훅 / 목록형: `data/types` + `data/api` + `data/hooks`
+- **데이터 레이어** — `hooks/use{Domain}Query.ts` 하나 (타입 + S3 조회/저장 + React Query 훅). 두 패턴 공통
 - **도메인 훅** — 폼 상태·검증·이미지 업로드·저장, (목록형) 순서 변경·삭제·필터·선택
 - **페이지** — 버전형 4종 / 목록형 2종 + 삭제 확인 모달
 
@@ -29,7 +31,7 @@ LaCMS 어드민에 **S3 정적 JSON을 읽고 쓰는 메뉴**를 스캐폴딩하
 1. 스킬 트리거 (`/static-resource-admin` 또는 자연어)
 2. 아래 **사전 수집 질문**을 수집 — 첫 턴에 아래 질문 전체를 선택지·예시까지 상세히 보여준 뒤 **한 턴에 하나씩** 묻습니다. 선택형은 선택지 UI로, 파생 가능한 값(명칭 6종·MenuItemId·sort·Router)은 제안 후 확인만 받습니다. 모두 모이면 요약표로 최종 확인 후 생성 시작
 3. 최신 `origin/main`에서 `feat/{티켓번호}` 브랜치 생성
-4. 파일 생성 — 공통 수정 5~6개 + 버전형 신규 7개 / 목록형 신규 19개
+4. 파일 생성 — 공통 수정 5~6개 + 버전형 신규 7개 / 목록형 신규 9개
 5. 타입체크 — `npx tsc --noEmit`
 6. 커밋은 자동으로 하지 않으며, 사용자 확인 후 진행
 
@@ -79,7 +81,7 @@ LaCMS 어드민에 **S3 정적 JSON을 읽고 쓰는 메뉴**를 스캐폴딩하
 
 ### 6. 이미지 필드
 - 개수 — 0개 / 1개 / 2개(PC+모바일) / 그 외(커스텀)
-- 이미지 제약(확장자·규격·용량)과 검사 여부 — 허용 확장자 / 권장 규격 / 최대 용량(KB) 값을 받고, 파일 선택 시 실제로 검사해 막을지 결정. 컬리나우 배너는 `constants/bannerPolicy.ts`에 상수화해 검사하고, 버전형 도메인들은 helperText로 안내만 함
+- 이미지 제약(확장자·규격·용량)과 검사 여부 — 허용 확장자 / 권장 규격 / 최대 용량(KB) 값을 받고, 파일 선택 시 실제로 검사해 막을지 결정. 목록형은 `constants/pathConstant.ts` 운영 정책 섹션에 상수화해 검사(컬리나우는 별도 `bannerPolicy.ts`), 버전형 도메인들은 helperText로 안내만 함
 
 ### 7. (목록형만) 목록 운영 정책
 - 최대 등록 개수 (컬리나우: 50) — 없으면 상한 체크 삭제
@@ -117,13 +119,12 @@ static-resource-admin/
 │   │   ├── DomainPromotionCreatePage.tsx.template
 │   │   ├── DomainPromotionDetailPage.tsx.template
 │   │   └── index.ts.template
-│   └── collection/              # 목록형 — 컬리나우 배너관리(NowMainBanner) 기준
-│       ├── pathConstant.ts.template
-│       ├── policy.ts.template
-│       ├── data-layer.ts.template      # types/api/hooks 9개 파일을 구분자로 묶음
-│       ├── util.ts.template
+│   └── collection/              # 목록형 — 컬리나우 배너관리(NowMainBanner) 기준, 버전형 골격으로 축약
+│       ├── pathConstant.ts.template    # S3 경로 + 운영 정책 상수
+│       ├── useDomainQuery.ts.template  # 타입 + S3 조회/저장 + React Query 훅
 │       ├── useDomainForm.ts.template
-│       ├── list-hooks.ts.template      # List/Filter/Selection 3개 훅
+│       ├── useDomainList.ts.template   # 순서 변경·삭제 + 필터 + 선택
+│       ├── util.ts.template
 │       ├── DeleteConfirmModal.tsx.template
 │       ├── DomainListPage.tsx.template
 │       ├── DomainFormPage.tsx.template
@@ -138,7 +139,7 @@ static-resource-admin/
 
 **버전형 신규 (7개)** — `use{Domain}Query.ts` · `use{Domain}Form.ts` · `pages/{domain}/` 하위 index + List/Default/Create/Detail (+ `pathConstant.ts` 상수 5종)
 
-**목록형 신규 (19개)** — `constants/` 2개 · `data/` 9개 · `utils/` 1개 · `hooks/` 4개 · `components/DeleteConfirmModal.tsx` · `pages/` 3개
+**목록형 신규 (9개)** — `constants/pathConstant.ts` · `hooks/` 3개(Query/Form/List) · `utils/{domain}Util.ts` · `components/DeleteConfirmModal.tsx` · `pages/` 3개. 버전형과 같은 골격으로 맞춘 축약 구조이며, 컬리나우 배너관리(19개)보다 잘게 나누지 않음. `util`·`DeleteConfirmModal`을 `app/memberPromotion/`으로 공통화하면 7개가 되지만 이는 사용자가 코드 변경을 요청할 때만 진행
 
 ## 지켜야 할 규칙
 
@@ -156,6 +157,6 @@ static-resource-admin/
 
 - `src/shared/lib/menu/`에 fixtures / constants / path 파일, `src/shared/layout/MainApp.tsx`에 RoutePrefix → Router 매핑
 - 공통 유틸은 `src/app/memberPromotion/` 에 있고 다른 디렉터리에서도 그대로 import
-- 목록형 데이터 레이어는 전시 카테고리(`category-v2`)의 `data/api` + `data/hooks` 구조를 따름
+- 컬리나우 배너관리는 전시 카테고리(`category-v2`)의 `data/api` + `data/hooks` 구조를 따르지만, 스킬이 생성하는 목록형은 버전형과 같은 `hooks/use{Domain}Query.ts` 단일 파일 구조
 
 다른 프로젝트에는 그대로 적용되지 않으며, 유사한 패턴이 있다면 `templates/` 파일들을 해당 구조에 맞게 수정해야 합니다.

@@ -28,9 +28,7 @@ import FormCheckboxGroupField from 'shared/atomic/molecules/FormCheckboxGroupFie
 import { useModal } from 'shared/providers/ModalProvider';
 import { STATUS_LABEL } from 'app/memberPromotion/utils/versionUtil';
 import { formatItemDateTime, getItemStatus, isAllowedLink, isAlwaysOn } from 'app/{domain}/utils/{domain}Util';
-import { use{Domain}List } from 'app/{domain}/hooks/use{Domain}List';
-import { use{Domain}Selection } from 'app/{domain}/hooks/use{Domain}Selection';
-import { ITEM_STATUS_OPTIONS, use{Domain}Filter } from 'app/{domain}/hooks/use{Domain}Filter';
+import { ITEM_STATUS_OPTIONS, use{Domain}List } from 'app/{domain}/hooks/use{Domain}List';
 import DeleteConfirmModal from 'app/{domain}/components/DeleteConfirmModal';
 import {
   {DOMAIN_SNAKE}_LIST_GUIDE,
@@ -39,15 +37,14 @@ import {
   MAX_{DOMAIN_SNAKE}_COUNT_TOOLTIP,
   REORDER_DISABLED_GUIDE,
   SELECTION_RESET_GUIDE,
-} from 'app/{domain}/constants/{domain}Policy';
-import type { {Domain} } from 'app/{domain}/data/types/{domain}';
+} from 'app/{domain}/constants/pathConstant';
+import type { {Domain} } from 'app/{domain}/hooks/use{Domain}Query';
 
 function {Domain}ListPage() {
   const history = useHistory();
   const openModal = useModal();
-  const { items, isLoading, isSaving, isMaxCountReached, moveItem, removeItems } = use{Domain}List();
-  const filter = use{Domain}Filter(items);
-  const selection = use{Domain}Selection(filter.filteredItems);
+  const { items, isLoading, isSaving, isMaxCountReached, moveItem, removeItems, filter, selection } =
+    use{Domain}List();
 
   /** 필터로 일부가 가려지면 화면 순서와 실제 배열 순서가 어긋나므로 순서 변경을 막는다. */
   const isReorderDisabled = filter.hasHiddenItem || isSaving;

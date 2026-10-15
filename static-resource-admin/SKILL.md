@@ -21,10 +21,10 @@ description: |
 
 | 패턴 | 도메인 | 메뉴 위치 | 디렉터리 |
 |---|---|---|---|
-| 버전형 | 첫구매 (WelcomeBenefit) · 친구초대 회원가입 (InviteFriendSignup) · 친구초대 더블적립금 (InviteFriend) · (V)VIP 제도 안내 (VipMembership) | 회원 > 프로모션 > … | `src/app/memberPromotion/` |
-| 목록형 | 컬리나우 배너관리 (NowMainBanner) | 프로모션 > 컬리나우 배너관리 | `src/app/nowMainBanner/` |
+| 버전형 | [첫구매](https://lacms2.stg.kurlycorp.kr/user/promotion/welcome-benefit) (WelcomeBenefit) · [친구초대 회원가입](https://lacms2.stg.kurlycorp.kr/user/promotion/invite-friend-signup) (InviteFriendSignup) · [친구초대 더블적립금](https://lacms2.stg.kurlycorp.kr/user/promotion/invite-friend) (InviteFriend) · [(V)VIP 제도 안내](https://lacms2.stg.kurlycorp.kr/user/promotion/vip-membership) (VipMembership) | 회원 > 프로모션 > … | `src/app/memberPromotion/` |
+| 목록형 | [컬리나우 배너관리](https://lacms2.stg.kurlycorp.kr/promotion/now-main-banner) (NowMainBanner) | 프로모션 > 컬리나우 배너관리 | `src/app/nowMainBanner/` |
 
-기존 도메인의 실제 코드 예시와 비교 매트릭스는 `examples/reference.md` 참조.
+(링크는 LaCMS stg 환경) 기존 도메인의 실제 코드 예시와 비교 매트릭스는 `examples/reference.md` 참조.
 
 ---
 
@@ -100,7 +100,7 @@ description: |
 - 1개 (첫구매·친구초대 회원가입·컬리나우 배너 스타일)
 - 2개 (친구초대 PC + 모바일 스타일)
 - 그 외 (여러 개 반복 세트 등 — 커스텀 필요)
-- 이미지 제약(확장자·규격·용량)과 검사 여부: 허용 확장자 / 권장 규격 / 최대 용량(KB) 값을 받고, 파일 선택 시 실제로 검사해 막을지 결정. 목록형은 `constants/{domain}Policy.ts`에 상수화해 검사(컬리나우), 버전형은 helperText 안내만
+- 이미지 제약(확장자·규격·용량)과 검사 여부: 허용 확장자 / 권장 규격 / 최대 용량(KB) 값을 받고, 파일 선택 시 실제로 검사해 막을지 결정. 목록형은 `constants/pathConstant.ts` 운영 정책 섹션에 상수화해 검사(컬리나우는 별도 `bannerPolicy.ts`), 버전형은 helperText 안내만
 
 ### 7. (목록형만) 목록 운영 정책
 - **최대 등록 개수** (컬리나우: 50) — 없으면 상한 체크 로직 삭제
@@ -153,30 +153,23 @@ description: |
 
 템플릿: `templates/versioned/`
 
-### 목록형 — 신규 생성 (19개, 전용 디렉터리 `src/app/{domain}/`)
+### 목록형 — 신규 생성 (9개, 전용 디렉터리 `src/app/{domain}/`)
+버전형과 같은 골격(constants 1 · hooks N · pages)으로 맞춘 축약 구조. **컬리나우 배너관리(`src/app/nowMainBanner`)는 category-v2 관례로 19개 파일로 더 잘게 나뉘어 있지만 새 도메인은 아래 구조를 따른다.**
 ```
 src/app/{domain}/
-├── constants/pathConstant.ts            S3 경로 상수
-├── constants/{domain}Policy.ts          최대 개수·안내 문구·이미지 정책
-├── data/types/{domain}.ts               항목 타입 + 파일 전체 타입
-├── data/api/get{Domain}s.ts             JSON 조회
-├── data/api/post{Domain}Image.ts        이미지 업로드
-├── data/api/put{Domain}s.ts             배열 전체 덮어쓰기
-├── data/hooks/queryKeys.ts
-├── data/hooks/useGet{Domain}s.ts
-├── data/hooks/usePost{Domain}Image.ts
-├── data/hooks/usePut{Domain}s.ts
-├── utils/{domain}Util.ts                상태 판단·KST 포맷·id 채번·위치 삽입·링크 검증
+├── constants/pathConstant.ts            S3 경로 상수 + 운영 정책(최대 개수·안내 문구·이미지 제약)
+├── hooks/use{Domain}Query.ts            타입 + S3 조회/저장 + React Query 훅 (조회·저장·이미지 업로드)
 ├── hooks/use{Domain}Form.ts             등록/수정 폼
-├── hooks/use{Domain}List.ts             순서 변경·삭제
-├── hooks/use{Domain}Filter.ts           기준일시·상태 필터
-├── hooks/use{Domain}Selection.ts        체크박스 선택
+├── hooks/use{Domain}List.ts             순서 변경·삭제 + 기준일시/상태 필터 + 체크박스 선택
+├── utils/{domain}Util.ts                상태 판단·KST 포맷·id 채번·위치 삽입·링크 검증
 ├── components/DeleteConfirmModal.tsx
 ├── pages/index.ts
 ├── pages/{Domain}ListPage.tsx
 └── pages/{Domain}FormPage.tsx
 ```
-템플릿: `templates/collection/` (작은 파일들은 `data-layer.ts.template`, `list-hooks.ts.template`에 `// ===== 목적지:` 구분자로 묶여 있음 — 구분자 단위로 쪼개서 각 파일로 저장)
+템플릿: `templates/collection/` (파일 1:1 대응)
+
+> `utils/{domain}Util.ts` 와 `components/DeleteConfirmModal.tsx` 는 항목 타입에 의존하지 않는 범용 코드라 `app/memberPromotion/` 으로 올리면 새 도메인은 7개로 줄어든다. 단, 이건 프로젝트 코드 변경이므로 **사용자가 공통화를 요청할 때만** 진행하고 그 전까지는 도메인별로 생성한다.
 
 ---
 
@@ -186,8 +179,8 @@ src/app/{domain}/
 2. **git 브랜치 생성** — 최신 `origin/main`에서 `feat/{티켓번호}` (티켓 번호 없으면 물어봄)
 3. **pathConstant 상수 추가/신설**
 4. **메뉴/라우팅 등록** — `templates/common/menu-registration.md` 순서대로 (constants.ts / path.ts / fixtures.ts / managerRest.ts / Router)
-5. **데이터 레이어** — 버전형: `use{Domain}Query.ts` / 목록형: `data/types` + `data/api` + `data/hooks`
-6. **도메인 훅** — 버전형: `use{Domain}Form.ts` / 목록형: `utils` + `hooks` 4종 + `constants/{domain}Policy.ts`
+5. **데이터 레이어** — 두 패턴 모두 `hooks/use{Domain}Query.ts` 하나 (타입 + fetch + React Query 훅)
+6. **도메인 훅** — 버전형: `use{Domain}Form.ts` / 목록형: `utils/{domain}Util.ts` + `use{Domain}Form.ts` + `use{Domain}List.ts`
 7. **페이지** — 버전형 4종 / 목록형 2종 (+ `DeleteConfirmModal`)
 8. **타입체크** — `npx tsc --noEmit -p tsconfig.json 2>&1 | grep -v node_modules | head`
 9. **간단한 검증** — PATH 상수 위치, `pathForMenuItem` 매핑, 메뉴 fixture/managerRest 순서, Router import
@@ -211,7 +204,7 @@ src/app/{domain}/
 | **(버전형) 회원>프로모션 밖에 생성** | 전용 디렉터리 `src/app/{domain}/` 신설. `constants/pathConstant.ts`를 새로 만들고 `RES_WEB_BASE`만 memberPromotion에서 import. PATH 이름에서 `_PROMOTION` 접미어·`/promotion/` 세그먼트 제거. `pages/index.ts`는 목록형과 같은 named export 방식 |
 | **(목록형) 상시 노출 불필요** | `isAlwaysOn` 상태·체크박스·`ALWAYS_ON_END_DATE`·`isAlwaysOnBanner` 삭제. 기간 검증은 항상 수행 |
 | **(목록형) 최대 개수 없음** | `MAX_*_COUNT` 관련 상수·툴팁·저장 전 재조회 체크·`isMaxCountReached` 삭제 (저장 직전 `refetch`는 동시 편집 방지용이라 유지 권장) |
-| **(목록형) 순서 변경 / 선택 삭제 / 필터 불필요** | 해당 훅(`use{Domain}List.moveBanner` / `removeBanners` / `use{Domain}Filter`·`Selection`)과 ListPage의 컬럼·버튼 블록 삭제 |
+| **(목록형) 순서 변경 / 선택 삭제 / 필터 불필요** | `use{Domain}List.ts` 안의 `moveItem` / `removeItems`+`useSelection` / `useFilter` 와 ListPage의 컬럼·버튼 블록 삭제 |
 | **이미지 필드 0개** | `ImageUploadField` 임포트/사용부 삭제. hook의 이미지 관련 state/handler 제거 |
 | **이미지 필드 2개 이상** | `pcFileInputRef` / `mobileFileInputRef`처럼 접미어 붙여 각각 관리 (InviteFriend 예시 참고) |
 | **데이터 모델 복잡 (탭·중첩 배열 등)** | Form hook에 `state` 통째로 관리 + `formStateToVersionData` / `versionDataToFormState` 변환 함수 (VipMembership 예시) |

@@ -30,9 +30,7 @@ import { PATH } from 'shared/lib/menu/path';
 import { validatePromotionPeriod } from 'app/memberPromotion/utils/dateUtil';
 import { IMAGE_UPLOAD_REQUIRED_GUIDE } from 'app/memberPromotion/components/ImageUploadField';
 import { useConfirmDialogActions } from 'shared/components/ConfirmDialogProvider';
-import { useGet{Domain}s } from 'app/{domain}/data/hooks/useGet{Domain}s';
-import { usePost{Domain}Image } from 'app/{domain}/data/hooks/usePost{Domain}Image';
-import { usePut{Domain}s } from 'app/{domain}/data/hooks/usePut{Domain}s';
+import { use{Domain}s, usePost{Domain}Image, usePut{Domain}s, {Domain} } from 'app/{domain}/hooks/use{Domain}Query';
 import {
   IMAGE_ALLOWED_EXTENSIONS,
   IMAGE_EXTENSION_ERROR,
@@ -41,8 +39,7 @@ import {
   LEAVE_CONFIRM_GUIDE,
   MAX_{DOMAIN_SNAKE}_COUNT,
   MAX_{DOMAIN_SNAKE}_COUNT_SAVE_ERROR,
-} from 'app/{domain}/constants/{domain}Policy';
-import type { {Domain} } from 'app/{domain}/data/types/{domain}';
+} from 'app/{domain}/constants/pathConstant';
 import {
   ALWAYS_ON_END_DATE,
   formatDateToKST,
@@ -60,7 +57,7 @@ const use{Domain}Form = ({ editId, isEditMode = false }: { editId?: number; isEd
   const { openConfirm } = useConfirmDialogActions();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { items, isLoading: isLoadingItems, isSuccess, refetch: refetchItems } = useGet{Domain}s();
+  const { items, isLoading: isLoadingItems, isSuccess, refetch: refetchItems } = use{Domain}s();
   const uploadImage = usePost{Domain}Image();
   const saveItems = usePut{Domain}s({ actionLabel: isEditMode ? '수정' : '등록' });
 

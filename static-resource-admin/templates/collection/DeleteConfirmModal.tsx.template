@@ -11,8 +11,8 @@
 import { Button, DialogActions, DialogContent } from '@mui/material';
 
 import { KyDialogTitle } from 'shared/components/KurlyDialog';
-import { DELETE_CONFIRM_GUIDE } from 'app/{domain}/constants/{domain}Policy';
-import type { {Domain} } from 'app/{domain}/data/types/{domain}';
+import { DELETE_CONFIRM_GUIDE } from 'app/{domain}/constants/pathConstant';
+import type { {Domain} } from 'app/{domain}/hooks/use{Domain}Query';
 
 type DeleteConfirmModalProps = {
   /** 삭제 대상 항목과 현재 노출순서 */

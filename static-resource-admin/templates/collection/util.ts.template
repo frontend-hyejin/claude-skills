@@ -10,7 +10,7 @@
  */
 import { dayjs } from 'shared/utils/dayjsUtils';
 import type { VersionStatus } from 'app/memberPromotion/utils/versionUtil';
-import type { {Domain} } from 'app/{domain}/data/types/{domain}';
+import type { {Domain} } from 'app/{domain}/hooks/use{Domain}Query';
 
 /** 항목 노출 상태 (예정 / 진행중 / 종료) — memberPromotion 의 STATUS_LABEL 재사용 */
 export type ItemStatus = VersionStatus;

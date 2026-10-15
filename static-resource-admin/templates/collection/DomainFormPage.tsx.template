@@ -21,7 +21,7 @@ import Checkbox from 'shared/atomic/atoms/Checkbox';
 import ImageUploadField from 'app/memberPromotion/components/ImageUploadField';
 import { LINK_GUIDE, use{Domain}Form } from 'app/{domain}/hooks/use{Domain}Form';
 import { parseItemId } from 'app/{domain}/utils/{domain}Util';
-import { ALWAYS_ON_LABEL, IMAGE_GUIDE, POSITION_GUIDE } from 'app/{domain}/constants/{domain}Policy';
+import { ALWAYS_ON_LABEL, IMAGE_GUIDE, POSITION_GUIDE } from 'app/{domain}/constants/pathConstant';
 
 type {Domain}FormPageProps = {
   isEditMode?: boolean;

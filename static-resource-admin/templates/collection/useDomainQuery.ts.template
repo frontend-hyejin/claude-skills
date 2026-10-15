@@ -1,0 +1,145 @@
+/**
+ * 목적지: src/app/{domain}/hooks/use{Domain}Query.ts
+ *
+ * 목록형 데이터 레이어 — 타입 + S3 조회/저장 함수 + React Query 훅을 한 파일에 둔다
+ * (버전형 use{Domain}Query.ts 와 같은 골격. 컬리나우 배너관리는 category-v2 관례로 data/types·api·hooks 9개 파일로
+ *  나뉘어 있지만, 새 도메인은 이 축약 구조를 따른다. 공통 분리는 사용자가 코드 변경을 요청할 때 진행)
+ *
+ * 치환:
+ *   {Domain}        = PascalCase (항목 타입 이름으로도 사용) (예: NowMainBanner)
+ *   {domain}        = camelCase 디렉터리                     (예: nowMainBanner)
+ *   {domain-kebab}  = queryKey                               (예: now-main-banner)
+ *   {DOMAIN_SNAKE}  = SNAKE_CASE                             (예: NOW_MAIN_BANNER)
+ *   {한글 도메인}    = 로그 접두어                             (예: 컬리나우 배너관리)
+ *   {항목}           = UI 문구                                (예: 배너)
+ *
+ * 항목 필드(imageUrl/link/name/startDate/endDate)는 예시. 8번 데이터 모델 필드로 교체.
+ */
+import { useEffect } from 'react';
+import axios from 'axios';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+import useSnackbarMessage from 'shared/utils/snackbar';
+import { RES_WEB_BASE } from 'app/memberPromotion/constants/pathConstant';
+import { uploadToS3, createJsonFile } from 'app/memberPromotion/utils/uploadUtil';
+import {
+  {DOMAIN_SNAKE}_FILE_NAME,
+  {DOMAIN_SNAKE}_IMAGE_BASE,
+  {DOMAIN_SNAKE}_JSON_PATH,
+  {DOMAIN_SNAKE}_RESOURCE_ID,
+  RES_WEB_{DOMAIN_SNAKE}_PATH,
+} from 'app/{domain}/constants/pathConstant';
+
+// ── 타입 ──
+
+/** {한글 도메인} 항목 */
+export type {Domain} = {
+  id: number;
+  imageUrl: string;
+  link: string;
+  name: string;
+  /** ISO8601 (예: 2026-07-01T00:00:00+09:00) */
+  startDate: string;
+  /** ISO8601 (예: 2026-07-31T23:59:59+09:00) */
+  endDate: string;
+};
+
+/** JSON 파일 전체 구조 */
+export type {Domain}Data = {
+  id: string;
+  data: {Domain}[];
+};
+
+// ── S3 조회/저장 ──
+
+/** 목록 조회 */
+const fetch{Domain}s = async (): Promise<{Domain}[]> => {
+  const { data } = await axios.get<{Domain}Data>(RES_WEB_{DOMAIN_SNAKE}_PATH);
+  return data.data ?? [];
+};
+
+/** 목록 저장 (배열 전체 덮어쓰기. 노출 순서 = 배열 순서) */
+const put{Domain}s = async (items: {Domain}[]) => {
+  const jsonData: {Domain}Data = {
+    id: {DOMAIN_SNAKE}_RESOURCE_ID,
+    data: items,
+  };
+
+  return uploadToS3({
+    file: createJsonFile(jsonData, {DOMAIN_SNAKE}_FILE_NAME),
+    path: {DOMAIN_SNAKE}_JSON_PATH,
+  });
+};
+
+/**
+ * 이미지 업로드. 업로드된 풀 URL 반환
+ * `/web/images/` 하위는 업로드 시 CDN 캐시가 자동 퍼지됨
+ */
+const post{Domain}Image = async ({ file, itemId }: { file: File; itemId: number }) => {
+  const path = `${{DOMAIN_SNAKE}_IMAGE_BASE}/${itemId}/${file.name}`;
+  await uploadToS3({ file, path });
+
+  return `${RES_WEB_BASE}/${path}`;
+};
+
+// ── React Query ──
+
+const {DOMAIN_SNAKE}_LIST_KEY = ['{domain-kebab}', 'list'];
+
+/** {한글 도메인} 목록 조회 훅. 실패 시 스낵바 */
+export function use{Domain}s() {
+  const snackbar = useSnackbarMessage();
+
+  const queryResult = useQuery({
+    queryKey: {DOMAIN_SNAKE}_LIST_KEY,
+    queryFn: fetch{Domain}s,
+  });
+
+  const { isError, error } = queryResult;
+
+  useEffect(() => {
+    if (!isError) return;
+
+    console.error('[{한글 도메인}] 목록 조회 실패:', error);
+    snackbar.error('{항목} 목록 조회에 실패했습니다. 잠시 후 다시 시도해주세요.');
+  }, [isError, error]);
+
+  return {
+    ...queryResult,
+    items: queryResult.data ?? [],
+  };
+}
+
+/** 목록 저장 훅. actionLabel = '등록' | '수정' | '순서 변경' | '삭제' */
+export function usePut{Domain}s({ actionLabel }: { actionLabel: string }) {
+  const snackbar = useSnackbarMessage();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (items: {Domain}[]) => put{Domain}s(items),
+    onSuccess() {
+      queryClient.invalidateQueries({ queryKey: {DOMAIN_SNAKE}_LIST_KEY });
+      snackbar.success(`{항목}이 ${actionLabel}되었습니다.`);
+    },
+    onError(err) {
+      console.error(`[{한글 도메인}] ${actionLabel} 실패:`, err);
+      snackbar.error(`{항목} ${actionLabel}에 실패했습니다. 잠시 후 다시 시도해주세요.`);
+    },
+  });
+}
+
+/** 이미지 업로드 훅 */
+export function usePost{Domain}Image() {
+  const snackbar = useSnackbarMessage();
+
+  return useMutation({
+    mutationFn: ({ file, itemId }: { file: File; itemId: number }) => post{Domain}Image({ file, itemId }),
+    onSuccess() {
+      snackbar.success('이미지 업로드가 완료되었습니다.');
+    },
+    onError(err) {
+      console.error('[{한글 도메인}] 이미지 업로드 실패:', err);
+      snackbar.error('이미지 업로드에 실패했습니다. 잠시 후 다시 시도해주세요.');
+    },
+  });
+}

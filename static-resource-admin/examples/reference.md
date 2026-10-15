@@ -17,6 +17,7 @@
 | **이미지 필드** | 1개 (signupCouponImage) | 1개 (signupCouponImage) | 2개 (PC / 모바일) | 0개 | 1개 (png/jpg/jpeg, 640×240, 350KB) |
 | **데이터 모델** | 단순 (image + text + link) | 단순 (image + text + link) | 콘텐츠 + 공지 목록(현재 비노출) | 5개 영역 (head/selection/tiers/notice/…) | `{ id, imageUrl, link, name, startDate, endDate }[]` |
 | **목록 운영** | 버전 테이블 | 버전 테이블 | 버전 테이블 | 버전 테이블 | 최대 50개 · 순서 이동 · 선택 삭제 · 기준일시/상태 필터 |
+| **LaCMS stg 메뉴** | [열기](https://lacms2.stg.kurlycorp.kr/user/promotion/welcome-benefit) | [열기](https://lacms2.stg.kurlycorp.kr/user/promotion/invite-friend-signup) | [열기](https://lacms2.stg.kurlycorp.kr/user/promotion/invite-friend) | [열기](https://lacms2.stg.kurlycorp.kr/user/promotion/vip-membership) | [열기](https://lacms2.stg.kurlycorp.kr/promotion/now-main-banner) |
 | **소비 측 노출 URL** | `/member/login`, `/member/signup/success` | `/member/signup/success` | `/events/member/friend` | `/events/member/vip` | 컬리나우 메인 |
 | **생성 PR** | — | — | — | — | #7068 (KCW-5467) |
 
@@ -43,7 +44,24 @@ src/app/memberPromotion/
         └── {Domain}PromotionDetailPage.tsx
 ```
 
-### 목록형 (전용 디렉터리)
+### 목록형 — 스킬이 생성하는 구조 (전용 디렉터리, 버전형과 동일 골격)
+
+```
+src/app/{domain}/
+├── constants/pathConstant.ts            [S3 경로 + 운영 정책 상수]
+├── hooks/
+│   ├── use{Domain}Query.ts              [타입 + S3 조회/저장 + React Query 훅]
+│   ├── use{Domain}Form.ts               [등록/수정 폼]
+│   └── use{Domain}List.ts               [순서 변경·삭제 + 필터 + 선택]
+├── utils/{domain}Util.ts                [상태 판단·KST 포맷·id 채번·위치 삽입·링크 검증]
+├── components/DeleteConfirmModal.tsx
+└── pages/
+    ├── index.ts                         [named export 2개]
+    ├── {Domain}ListPage.tsx
+    └── {Domain}FormPage.tsx             [isEditMode prop]
+```
+
+### 목록형 — 컬리나우 배너관리 실제 코드 (참고용, category-v2 관례로 더 잘게 분리됨. 새 도메인은 위 축약 구조를 따를 것)
 
 ```
 src/app/nowMainBanner/
