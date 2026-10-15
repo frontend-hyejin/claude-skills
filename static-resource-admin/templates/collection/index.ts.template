@@ -1,0 +1,5 @@
+/**
+ * 목적지: src/app/{domain}/pages/index.ts
+ */
+export { default as {Domain}ListPage } from './{Domain}ListPage';
+export { default as {Domain}FormPage } from './{Domain}FormPage';

@@ -1,0 +1,305 @@
+/**
+ * 목적지: src/app/{domain}/hooks/use{Domain}Form.ts
+ *
+ * 등록/수정 공용 폼 훅. isEditMode + editId 로 모드 구분.
+ *
+ * 치환:
+ *   {Domain}        = PascalCase (항목 타입) (예: NowMainBanner)
+ *   {domain}        = camelCase            (예: nowMainBanner)
+ *   {DOMAIN_SNAKE}  = SNAKE_CASE           (예: NOW_MAIN_BANNER)
+ *   {항목}           = UI 문구               (예: 배너)
+ *
+ * 변형:
+ *   - 상시 노출 없음 → isAlwaysOn 관련 state/handler 삭제, endDate 항상 검증
+ *   - 최대 개수 없음 → MAX_* 체크 삭제 (저장 직전 refetch 는 유지)
+ *   - 링크 없음     → link/linkError/isAllowedLink 삭제
+ *   - 항목 필드     → name/link/imageUrl 예시를 8번 데이터 모델로 교체
+ *
+ * 주의 (PR #7068 코드리뷰 반영 사항):
+ *   - 등록 모드 id 는 목록 최초 로드 시 state 로 고정 (목록 갱신으로 id 가 바뀌면 이미지 경로와 저장 id 불일치)
+ *   - id 확정 전엔 이미지 업로드 비활성화
+ *   - 저장 직전 refetch 로 최신 목록 위에 적용 (배열 전체 덮어쓰기라 다른 담당자 변경 유실 방지)
+ */
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useHistory } from 'react-router-dom';
+
+import { dayjs } from 'shared/utils/dayjsUtils';
+import useSnackbarMessage from 'shared/utils/snackbar';
+import { removeWhitespace } from 'shared/utils/removeWhitespace';
+import { PATH } from 'shared/lib/menu/path';
+import { validatePromotionPeriod } from 'app/memberPromotion/utils/dateUtil';
+import { IMAGE_UPLOAD_REQUIRED_GUIDE } from 'app/memberPromotion/components/ImageUploadField';
+import { useConfirmDialogActions } from 'shared/components/ConfirmDialogProvider';
+import { useGet{Domain}s } from 'app/{domain}/data/hooks/useGet{Domain}s';
+import { usePost{Domain}Image } from 'app/{domain}/data/hooks/usePost{Domain}Image';
+import { usePut{Domain}s } from 'app/{domain}/data/hooks/usePut{Domain}s';
+import {
+  IMAGE_ALLOWED_EXTENSIONS,
+  IMAGE_EXTENSION_ERROR,
+  IMAGE_MAX_SIZE_KB,
+  IMAGE_SIZE_ERROR,
+  LEAVE_CONFIRM_GUIDE,
+  MAX_{DOMAIN_SNAKE}_COUNT,
+  MAX_{DOMAIN_SNAKE}_COUNT_SAVE_ERROR,
+} from 'app/{domain}/constants/{domain}Policy';
+import type { {Domain} } from 'app/{domain}/data/types/{domain}';
+import {
+  ALWAYS_ON_END_DATE,
+  formatDateToKST,
+  getNextItemId,
+  insertItemAtPosition,
+  isAllowedLink,
+  isAlwaysOn as isAlwaysOnItem,
+} from 'app/{domain}/utils/{domain}Util';
+
+export const LINK_GUIDE = 'http(s):// 로 시작하는 주소 또는 / 로 시작하는 경로만 입력할 수 있습니다.';
+
+const use{Domain}Form = ({ editId, isEditMode = false }: { editId?: number; isEditMode?: boolean } = {}) => {
+  const history = useHistory();
+  const snackbar = useSnackbarMessage();
+  const { openConfirm } = useConfirmDialogActions();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { items, isLoading: isLoadingItems, isSuccess, refetch: refetchItems } = useGet{Domain}s();
+  const uploadImage = usePost{Domain}Image();
+  const saveItems = usePut{Domain}s({ actionLabel: isEditMode ? '수정' : '등록' });
+
+  // ── 폼 상태 (항목 필드에 맞춰 교체) ──
+  const [position, setPosition] = useState('');
+  const [name, setName] = useState('');
+  const [link, setLink] = useState('');
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [isAlwaysOn, setIsAlwaysOn] = useState(false);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+
+  /** 등록 모드에서 사용할 id — 목록 최초 로드 시점에 확정해 고정 */
+  const [newItemId, setNewItemId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (isEditMode || !isSuccess || newItemId !== null) return;
+    setNewItemId(getNextItemId(items));
+  }, [isEditMode, isSuccess, newItemId, items]);
+
+  /** 수정 대상 */
+  const editTarget = useMemo(
+    () => (editId === undefined ? undefined : items.find((item) => item.id === editId)),
+    [items, editId],
+  );
+
+  /** 저장/이미지 업로드에 사용할 id. 아직 확정되지 않았으면 undefined */
+  const targetId = isEditMode ? editId : (newItemId ?? undefined);
+
+  /** 수정 모드 프리필 */
+  useEffect(() => {
+    if (!editTarget) return;
+
+    const alwaysOn = isAlwaysOnItem(editTarget);
+
+    setPosition(String(items.findIndex((item) => item.id === editTarget.id) + 1));
+    setName(editTarget.name);
+    setLink(editTarget.link);
+    setUploadedImageUrl(editTarget.imageUrl);
+    setStartDate(editTarget.startDate ? dayjs(editTarget.startDate).toDate() : null);
+    setIsAlwaysOn(alwaysOn);
+    setEndDate(alwaysOn || !editTarget.endDate ? null : dayjs(editTarget.endDate).toDate());
+  }, [editTarget]);
+
+  /** 등록 시 기본 노출위치는 맨 뒤 */
+  useEffect(() => {
+    if (isEditMode || !isSuccess || position) return;
+    setPosition(String(items.length + 1));
+  }, [isEditMode, isSuccess, position, items.length]);
+
+  /** 노출위치는 숫자만 허용 */
+  const handlePositionChange = (value: string) => {
+    setIsDirty(true);
+    setPosition(value.replace(/[^0-9]/g, ''));
+  };
+
+  /** 링크는 공백을 허용하지 않음 */
+  const handleLinkChange = (value: string) => {
+    setIsDirty(true);
+    setLink(removeWhitespace(value));
+  };
+
+  /** 상시 노출을 켜면 종료일 입력을 비우고 비활성화 */
+  const handleAlwaysOnChange = (checked: boolean) => {
+    setIsDirty(true);
+    setIsAlwaysOn(checked);
+    if (checked) setEndDate(null);
+  };
+
+  const handleFileSelect = () => {
+    fileInputRef.current?.click();
+  };
+
+  /** 선택한 파일을 초기화해 같은 파일을 다시 고를 수 있게 함 */
+  const resetFileInput = () => {
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null;
+    if (!file) {
+      setSelectedFile(null);
+      return;
+    }
+
+    const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+    if (!IMAGE_ALLOWED_EXTENSIONS.includes(extension)) {
+      snackbar.error(IMAGE_EXTENSION_ERROR);
+      resetFileInput();
+      return;
+    }
+
+    if (file.size / 1024 > IMAGE_MAX_SIZE_KB) {
+      snackbar.error(IMAGE_SIZE_ERROR);
+      resetFileInput();
+      return;
+    }
+
+    setSelectedFile(file);
+    setUploadedImageUrl('');
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile || targetId === undefined) return;
+
+    const imageUrl = await uploadImage.mutateAsync({ file: selectedFile, itemId: targetId }).catch(() => undefined);
+    if (!imageUrl) return;
+
+    setUploadedImageUrl(imageUrl);
+    resetFileInput();
+  };
+
+  /** 수정 대상을 목록에서 찾지 못한 상태 */
+  const isNotFound = isEditMode && !isLoadingItems && !editTarget;
+  const linkError = !!link && !isAllowedLink(link);
+
+  /** 필수 필드가 모두 채워져야 저장 가능 (항목 필드에 맞춰 교체) */
+  const isFormValid = !!(
+    Number(position) > 0 &&
+    name.trim() &&
+    link &&
+    !linkError &&
+    uploadedImageUrl &&
+    startDate &&
+    dayjs(startDate).isValid() &&
+    (isAlwaysOn || (endDate && dayjs(endDate).isValid()))
+  );
+
+  const handleGoBack = async () => {
+    if (isDirty) {
+      const { isConfirm } = await openConfirm({ content: LEAVE_CONFIRM_GUIDE });
+      if (!isConfirm) return;
+    }
+
+    history.push(PATH.{DOMAIN_SNAKE});
+  };
+
+  const handleSubmit = async () => {
+    if (selectedFile && !uploadedImageUrl) {
+      snackbar.error(IMAGE_UPLOAD_REQUIRED_GUIDE);
+      return;
+    }
+
+    if (!isFormValid) return;
+
+    if (!isSuccess || targetId === undefined) {
+      snackbar.error('기존 {항목} 목록을 불러오지 못해 저장할 수 없습니다.');
+      return;
+    }
+
+    if (!isAllowedLink(link)) {
+      snackbar.error(`링크는 ${LINK_GUIDE}`);
+      return;
+    }
+
+    // 상시 노출은 종료일이 없으므로 기간 검증을 건너뛴다.
+    if (!isAlwaysOn) {
+      const periodValidation = validatePromotionPeriod({ startDate, endDate });
+      if (!periodValidation.isValid) {
+        snackbar.error(periodValidation.message);
+        return;
+      }
+    }
+
+    /** 저장 직전에 목록을 다시 읽어 최신 상태 위에 적용 + 최대 개수 확인 */
+    const { data: refetched } = await refetchItems();
+    const latestItems = refetched ?? items;
+
+    if (!isEditMode && latestItems.length >= MAX_{DOMAIN_SNAKE}_COUNT) {
+      snackbar.error(MAX_{DOMAIN_SNAKE}_COUNT_SAVE_ERROR);
+      return;
+    }
+
+    const item: {Domain} = {
+      id: targetId,
+      imageUrl: uploadedImageUrl,
+      link,
+      name: name.trim(),
+      startDate: formatDateToKST(startDate),
+      endDate: isAlwaysOn ? ALWAYS_ON_END_DATE : formatDateToKST(endDate),
+    };
+
+    const nextItems = insertItemAtPosition(latestItems, item, Number(position));
+
+    try {
+      await saveItems.mutateAsync(nextItems);
+      history.push(PATH.{DOMAIN_SNAKE});
+    } catch {
+      // 실패 스낵바는 usePut{Domain}s 에서 처리
+    }
+  };
+
+  return {
+    isEditMode,
+    isNotFound,
+    isLoadingItems,
+
+    position,
+    setPosition: handlePositionChange,
+    name,
+    setName: (value: string) => {
+      setIsDirty(true);
+      setName(value);
+    },
+    link,
+    setLink: handleLinkChange,
+    linkError,
+    startDate,
+    setStartDate: (date: Date | null) => {
+      setIsDirty(true);
+      setStartDate(date);
+    },
+    endDate,
+    setEndDate: (date: Date | null) => {
+      setIsDirty(true);
+      setEndDate(date);
+    },
+    isAlwaysOn,
+    setIsAlwaysOn: handleAlwaysOnChange,
+
+    fileInputRef,
+    selectedFile,
+    uploadedImageUrl,
+    isUploading: uploadImage.isPending,
+    isUploadDisabled: targetId === undefined,
+    handleFileSelect,
+    handleFileChange,
+    handleUpload,
+
+    isFormValid,
+    isSaving: saveItems.isPending,
+    handleSubmit,
+    handleGoBack,
+  };
+};
+
+export { use{Domain}Form };

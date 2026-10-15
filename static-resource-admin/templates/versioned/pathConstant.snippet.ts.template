@@ -1,5 +1,7 @@
 /**
- * `src/app/memberPromotion/constants/pathConstant.ts`에 아래 5개 세트를 추가.
+ * `{app-dir}/constants/pathConstant.ts`에 아래 5개 세트를 추가.
+ * ({app-dir} = src/app/memberPromotion 또는 전용 디렉터리 src/app/{domain}. 전용 디렉터리면 파일을 신설하고
+ *  `import { RES_WEB_BASE } from 'app/memberPromotion/constants/pathConstant';` 를 맨 위에 추가)
  * 기존 다른 도메인 상수들 뒤에 append.
  *
  * 치환 규칙:

@@ -1,0 +1,31 @@
+/**
+ * 목적지: src/app/{domain}/constants/pathConstant.ts
+ *
+ * 치환:
+ *   {DOMAIN_SNAKE}   = SNAKE_CASE            (예: NOW_MAIN_BANNER)
+ *   {resource-dir}   = S3 디렉터리 이름        (예: now-main-banners)
+ *   {fileName}       = JSON 파일명(확장자 제외) (예: nowMainBanners)
+ *   {한글 도메인}     = 주석용                 (예: 컬리나우 배너)
+ *
+ * 파일명은 환경과 무관하게 하나만 사용. 환경 분리는 버킷(res-dev / res-stg / res)이 담당하므로
+ * `_dev` 같은 환경별 접미어를 붙이지 말 것 (컬리나우 배너관리의 `_dev` 분기는 따라 하지 않음).
+ */
+import { RES_WEB_BASE } from 'app/memberPromotion/constants/pathConstant';
+
+/** JSON 파일명 (환경 공통) */
+export const {DOMAIN_SNAKE}_FILE_NAME = '{fileName}.json';
+
+/** JSON 본문 id 필드 - 소비 측이 보는 정적 데이터 식별자 */
+export const {DOMAIN_SNAKE}_RESOURCE_ID = '{resource-dir}/{fileName}.json';
+
+/** {한글 도메인} 이미지 업로드 경로 */
+export const {DOMAIN_SNAKE}_IMAGE_BASE = 'images/{resource-dir}';
+
+/** {한글 도메인} JSON 업로드 경로 */
+export const {DOMAIN_SNAKE}_JSON_PATH = `json/{resource-dir}/${{DOMAIN_SNAKE}_FILE_NAME}`;
+
+/**
+ * S3 조회 경로
+ * 예) https://res-dev.kurly.com/web/json/{resource-dir}/{fileName}.json
+ */
+export const RES_WEB_{DOMAIN_SNAKE}_PATH = `${RES_WEB_BASE}/${{DOMAIN_SNAKE}_JSON_PATH}`;

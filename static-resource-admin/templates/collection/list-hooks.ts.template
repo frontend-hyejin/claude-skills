@@ -1,0 +1,161 @@
+/**
+ * 목록 화면 훅 3종 — 아래 `// ===== 목적지:` 구분자마다 별도 파일로 저장.
+ *
+ * 치환:
+ *   {Domain}        = PascalCase (항목 타입) (예: NowMainBanner)
+ *   {domain}        = camelCase            (예: nowMainBanner)
+ *   {DOMAIN_SNAKE}  = SNAKE_CASE           (예: NOW_MAIN_BANNER)
+ *
+ * 순서 변경 불필요 → moveItem 삭제 / 선택 삭제 불필요 → removeItems + Selection 훅 삭제
+ * 필터 불필요 → Filter 훅 삭제 / 최대 개수 없음 → isMaxCountReached 삭제
+ */
+
+// ===== 목적지: src/app/{domain}/hooks/use{Domain}List.ts
+import { useGet{Domain}s } from 'app/{domain}/data/hooks/useGet{Domain}s';
+import { usePut{Domain}s } from 'app/{domain}/data/hooks/usePut{Domain}s';
+import { MAX_{DOMAIN_SNAKE}_COUNT } from 'app/{domain}/constants/{domain}Policy';
+import type { {Domain} } from 'app/{domain}/data/types/{domain}';
+
+/** 순서 이동 방향 */
+export type MoveDirection = 'top' | 'up' | 'down' | 'bottom';
+
+/** 목록의 순서 변경 / 삭제 처리 */
+const use{Domain}List = () => {
+  const { items, isLoading } = useGet{Domain}s();
+  const moveItems = usePut{Domain}s({ actionLabel: '순서 변경' });
+  const deleteItems = usePut{Domain}s({ actionLabel: '삭제' });
+
+  /** 노출 순서 변경 */
+  const moveItem = (index: number, direction: MoveDirection) => {
+    const lastIndex = items.length - 1;
+    const targetIndex = {
+      top: 0,
+      up: index - 1,
+      down: index + 1,
+      bottom: lastIndex,
+    }[direction];
+
+    if (targetIndex === index || targetIndex < 0 || targetIndex > lastIndex) return;
+
+    const nextItems = [...items];
+    const [moved] = nextItems.splice(index, 1);
+    nextItems.splice(targetIndex, 0, moved);
+
+    moveItems.mutate(nextItems);
+  };
+
+  /** 선택한 항목을 한 번에 삭제 */
+  const removeItems = async (targets: {Domain}[]) => {
+    const targetIds = targets.map((item) => item.id);
+
+    await deleteItems.mutateAsync(items.filter((item) => !targetIds.includes(item.id)));
+  };
+
+  return {
+    items,
+    isLoading,
+    isSaving: moveItems.isPending || deleteItems.isPending,
+    /** 전체 등록 개수가 상한에 도달했는지 여부 */
+    isMaxCountReached: items.length >= MAX_{DOMAIN_SNAKE}_COUNT,
+    moveItem,
+    removeItems,
+  };
+};
+
+export { use{Domain}List };
+
+// ===== 목적지: src/app/{domain}/hooks/use{Domain}Filter.ts
+import { useMemo, useState } from 'react';
+
+import type { VersionStatus } from 'app/memberPromotion/utils/versionUtil';
+import type { {Domain} } from 'app/{domain}/data/types/{domain}';
+import { getItemStatus } from 'app/{domain}/utils/{domain}Util';
+
+/** 상태 필터 체크박스 옵션 */
+export const ITEM_STATUS_OPTIONS: Array<{ value: VersionStatus; label: string }> = [
+  { value: 'scheduled', label: '예정' },
+  { value: 'active', label: '진행중' },
+  { value: 'expired', label: '종료' },
+];
+
+const ALL_STATUSES = ITEM_STATUS_OPTIONS.map((option) => option.value);
+
+/**
+ * 목록 표시 필터 (조회 조건일 뿐 저장 데이터에는 영향 없음)
+ */
+const use{Domain}Filter = (items: {Domain}[]) => {
+  const [baseDate, setBaseDate] = useState<Date | null>(() => new Date());
+  const [statuses, setStatuses] = useState<string[]>(ALL_STATUSES);
+
+  const filteredItems = useMemo(
+    () => items.filter((item) => statuses.includes(getItemStatus(item, baseDate))),
+    [items, statuses, baseDate],
+  );
+
+  const resetFilter = () => {
+    setBaseDate(new Date());
+    setStatuses(ALL_STATUSES);
+  };
+
+  return {
+    baseDate,
+    setBaseDate,
+    statuses,
+    setStatuses,
+    filteredItems,
+    /** 필터로 가려진 항목이 있는지 (있으면 순서 변경 비활성화) */
+    hasHiddenItem: filteredItems.length !== items.length,
+    resetFilter,
+  };
+};
+
+export { use{Domain}Filter };
+
+// ===== 목적지: src/app/{domain}/hooks/use{Domain}Selection.ts
+import { useEffect, useMemo, useState } from 'react';
+
+import type { {Domain} } from 'app/{domain}/data/types/{domain}';
+
+/**
+ * 목록 체크박스 선택 상태. 화면에 보이는 항목 구성이 바뀌면 선택 해제
+ */
+const use{Domain}Selection = (visibleItems: {Domain}[]) => {
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+
+  /** 화면에 보이는 항목 구성이 바뀌었는지 판단하는 키 */
+  const visibleKey = visibleItems.map((item) => item.id).join(',');
+
+  useEffect(() => {
+    setSelectedIds([]);
+  }, [visibleKey]);
+
+  const selectedItems = useMemo(
+    () => visibleItems.filter((item) => selectedIds.includes(item.id)),
+    [visibleItems, selectedIds],
+  );
+
+  const isAllSelected = visibleItems.length > 0 && selectedIds.length === visibleItems.length;
+
+  const toggleOne = (id: number) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]));
+  };
+
+  const toggleAll = () => {
+    setSelectedIds(isAllSelected ? [] : visibleItems.map((item) => item.id));
+  };
+
+  const clearSelection = () => setSelectedIds([]);
+
+  return {
+    selectedIds,
+    selectedItems,
+    selectedCount: selectedIds.length,
+    isAllSelected,
+    isSelected: (id: number) => selectedIds.includes(id),
+    toggleOne,
+    toggleAll,
+    clearSelection,
+  };
+};
+
+export { use{Domain}Selection };

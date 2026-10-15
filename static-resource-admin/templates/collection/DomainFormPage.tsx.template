@@ -1,0 +1,129 @@
+/**
+ * 목적지: src/app/{domain}/pages/{Domain}FormPage.tsx
+ *
+ * 등록/수정 공용 페이지. Router 에서 `<{Domain}FormPage isEditMode />` 로 수정 모드 진입.
+ *
+ * 치환:
+ *   {Domain}        = PascalCase (항목 타입) (예: NowMainBanner)
+ *   {domain}        = camelCase            (예: nowMainBanner)
+ *   {한글 도메인}    = menuTitle            (예: 컬리나우 배너관리)
+ *   {항목}           = UI 문구               (예: 배너)
+ *
+ * 변형: 상시 노출 없음 → Checkbox 블록 + endDisabled 삭제 / 필드는 항목 데이터 모델에 맞춰 교체
+ */
+import { useParams } from 'react-router-dom';
+
+import DetailTemplate from 'shared/atomic/templates/DetailTemplate';
+import Form from 'shared/atomic/organisms/Form';
+import FormTextField from 'shared/atomic/molecules/FormTextField';
+import FormDateRangePickerField from 'shared/atomic/molecules/FormDateRangePickerField/FormDateRangePickerField';
+import Checkbox from 'shared/atomic/atoms/Checkbox';
+import ImageUploadField from 'app/memberPromotion/components/ImageUploadField';
+import { LINK_GUIDE, use{Domain}Form } from 'app/{domain}/hooks/use{Domain}Form';
+import { parseItemId } from 'app/{domain}/utils/{domain}Util';
+import { ALWAYS_ON_LABEL, IMAGE_GUIDE, POSITION_GUIDE } from 'app/{domain}/constants/{domain}Policy';
+
+type {Domain}FormPageProps = {
+  isEditMode?: boolean;
+};
+
+/** {한글 도메인} - 등록/수정 */
+function {Domain}FormPage({ isEditMode = false }: {Domain}FormPageProps) {
+  const { id } = useParams<{ id?: string }>();
+  const editId = isEditMode ? parseItemId(id) : undefined;
+  const form = use{Domain}Form({ editId, isEditMode });
+
+  return (
+    <DetailTemplate menuTitle="{한글 도메인}" pageTitle={isEditMode ? '{항목} 수정' : '{항목} 등록'}>
+      <Form
+        onSubmit={(e) => {
+          e.preventDefault();
+          form.handleSubmit();
+        }}
+      >
+        <Form.Section title="{항목} 정보">
+          <FormTextField
+            id="position"
+            label="노출위치"
+            required
+            labelWidth={120}
+            value={form.position}
+            onChange={(e) => form.setPosition(e.target.value)}
+            helperText={POSITION_GUIDE}
+            style={{ maxWidth: 200 }}
+          />
+          <FormTextField
+            id="name"
+            label="{항목}명"
+            required
+            labelWidth={120}
+            value={form.name}
+            onChange={(e) => form.setName(e.target.value)}
+            placeholder="예: 8월 쿠폰 패키지"
+            style={{ maxWidth: 400 }}
+          />
+          <ImageUploadField
+            id="image"
+            label="이미지"
+            fileInputRef={form.fileInputRef}
+            selectedFile={form.selectedFile}
+            isUploading={form.isUploading}
+            uploadedImageUrl={form.uploadedImageUrl}
+            uploadDisabled={form.isUploadDisabled}
+            helperText={IMAGE_GUIDE}
+            showUploadHint
+            onFileSelect={form.handleFileSelect}
+            onFileChange={form.handleFileChange}
+            onUpload={form.handleUpload}
+          />
+          <FormTextField
+            id="link"
+            label="링크"
+            required
+            labelWidth={120}
+            value={form.link}
+            onChange={(e) => form.setLink(e.target.value)}
+            placeholder="예: https://www.kurly.com/collections/..."
+            error={form.linkError}
+            helperText={form.linkError ? LINK_GUIDE : undefined}
+            style={{ maxWidth: 500 }}
+          />
+        </Form.Section>
+
+        <Form.Section title="노출 기간">
+          <div style={{ maxWidth: 500 }}>
+            <FormDateRangePickerField
+              id="exposurePeriod"
+              label="기간"
+              required
+              labelWidth={120}
+              startDate={form.startDate}
+              endDate={form.endDate}
+              setStartDate={form.setStartDate}
+              setEndDate={form.setEndDate}
+              unit="minutes"
+              filterButtons={[]}
+              endDisabled={form.isAlwaysOn}
+            />
+          </div>
+          <div style={{ paddingLeft: 120 }}>
+            <Checkbox checked={form.isAlwaysOn} onChange={(e) => form.setIsAlwaysOn(e.target.checked)} size="small">
+              {ALWAYS_ON_LABEL}
+            </Checkbox>
+          </div>
+        </Form.Section>
+
+        <Form.Actions
+          submitLabel={form.isSaving ? '저장 중...' : '저장'}
+          cancelLabel="목록"
+          onCancel={form.handleGoBack}
+          disabled={!form.isFormValid || form.isSaving || form.isNotFound}
+          cancelFirst
+        />
+      </Form>
+      {form.isNotFound && <p className="px-2 text-sm text-red-600">대상 {항목}을 찾을 수 없습니다.</p>}
+    </DetailTemplate>
+  );
+}
+
+export default {Domain}FormPage;

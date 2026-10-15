@@ -1,0 +1,57 @@
+/**
+ * 목적지: src/app/{domain}/components/DeleteConfirmModal.tsx
+ *
+ * 치환:
+ *   {Domain} = PascalCase (항목 타입) (예: NowMainBanner)
+ *   {domain} = camelCase            (예: nowMainBanner)
+ *   {항목}    = UI 문구               (예: 배너)
+ *
+ * 이미지 필드가 없으면 <img> 삭제.
+ */
+import { Button, DialogActions, DialogContent } from '@mui/material';
+
+import { KyDialogTitle } from 'shared/components/KurlyDialog';
+import { DELETE_CONFIRM_GUIDE } from 'app/{domain}/constants/{domain}Policy';
+import type { {Domain} } from 'app/{domain}/data/types/{domain}';
+
+type DeleteConfirmModalProps = {
+  /** 삭제 대상 항목과 현재 노출순서 */
+  targets: Array<{ item: {Domain}; order: number }>;
+  /** ModalProvider가 주입한다 */
+  onClose?: () => void;
+  /** ModalProvider가 주입한다 */
+  onSubmit?: (result: boolean) => void;
+};
+
+/**
+ * 선택 삭제 확인 모달
+ */
+function DeleteConfirmModal({ targets, onClose, onSubmit }: DeleteConfirmModalProps) {
+  return (
+    <>
+      <KyDialogTitle onClose={onClose}>선택한 {항목} {targets.length}건을 삭제할까요?</KyDialogTitle>
+      <DialogContent style={{ maxHeight: 800, overflowY: 'auto' }}>
+        <ul className="flex flex-col gap-2 w-[400px] border rounded border-gray-200">
+          {targets.map(({ item, order }) => (
+            <li key={item.id} className="flex items-center gap-3 p-3 border-b last:border-b-0 border-gray-200">
+              <img src={item.imageUrl} alt={item.name} className="w-[80px] rounded" />
+              <span className="flex-1 break-all">{item.name}</span>
+              <span className="text-sm text-gray-500">순서 {order}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-4 text-sm text-red-500">{DELETE_CONFIRM_GUIDE}</p>
+      </DialogContent>
+      <DialogActions>
+        <Button variant="outlined" onClick={onClose}>
+          취소
+        </Button>
+        <Button variant="contained" color="secondary" onClick={() => onSubmit?.(true)}>
+          삭제
+        </Button>
+      </DialogActions>
+    </>
+  );
+}
+
+export default DeleteConfirmModal;

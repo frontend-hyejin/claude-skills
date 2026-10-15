@@ -1,0 +1,291 @@
+/**
+ * 목적지: src/app/{domain}/pages/{Domain}ListPage.tsx
+ *
+ * 항목 테이블 + 순서 이동 + 선택 삭제 + 기준일시/상태 필터.
+ *
+ * 치환:
+ *   {Domain}        = PascalCase (항목 타입) (예: NowMainBanner)
+ *   {domain}        = camelCase            (예: nowMainBanner)
+ *   {DOMAIN_SNAKE}  = SNAKE_CASE           (예: NOW_MAIN_BANNER)
+ *   {한글 도메인}    = menuTitle            (예: 컬리나우 배너관리)
+ *   {항목}           = UI 문구               (예: 배너)
+ *
+ * 변형: 순서 변경 없음 → actions 컬럼 삭제 / 선택 삭제 없음 → select 컬럼·선택 삭제 버튼·DeleteConfirmModal 삭제
+ *       필터 없음 → searchFilter prop 삭제 / 컬럼은 항목 필드에 맞춰 교체
+ */
+import React from 'react';
+import { Chip, Tooltip } from '@mui/material';
+import { useHistory } from 'react-router-dom';
+
+import { PATH } from 'shared/lib/menu/path';
+import ListTemplate from 'shared/atomic/templates/ListTemplate';
+import Table from 'shared/atomic/organisms/Table/Table';
+import Button from 'shared/atomic/atoms/Button';
+import Checkbox from 'shared/atomic/atoms/Checkbox';
+import { Column, ColumnRenderMap } from 'shared/atomic/organisms/Table/types';
+import FormDatePickerField from 'shared/atomic/molecules/FormDatePickerField';
+import FormCheckboxGroupField from 'shared/atomic/molecules/FormCheckboxGroupField';
+import { useModal } from 'shared/providers/ModalProvider';
+import { STATUS_LABEL } from 'app/memberPromotion/utils/versionUtil';
+import { formatItemDateTime, getItemStatus, isAllowedLink, isAlwaysOn } from 'app/{domain}/utils/{domain}Util';
+import { use{Domain}List } from 'app/{domain}/hooks/use{Domain}List';
+import { use{Domain}Selection } from 'app/{domain}/hooks/use{Domain}Selection';
+import { ITEM_STATUS_OPTIONS, use{Domain}Filter } from 'app/{domain}/hooks/use{Domain}Filter';
+import DeleteConfirmModal from 'app/{domain}/components/DeleteConfirmModal';
+import {
+  {DOMAIN_SNAKE}_LIST_GUIDE,
+  MAX_{DOMAIN_SNAKE}_COUNT,
+  {DOMAIN_SNAKE}_BUTTON_DISABLED_COLOR,
+  MAX_{DOMAIN_SNAKE}_COUNT_TOOLTIP,
+  REORDER_DISABLED_GUIDE,
+  SELECTION_RESET_GUIDE,
+} from 'app/{domain}/constants/{domain}Policy';
+import type { {Domain} } from 'app/{domain}/data/types/{domain}';
+
+function {Domain}ListPage() {
+  const history = useHistory();
+  const openModal = useModal();
+  const { items, isLoading, isSaving, isMaxCountReached, moveItem, removeItems } = use{Domain}List();
+  const filter = use{Domain}Filter(items);
+  const selection = use{Domain}Selection(filter.filteredItems);
+
+  /** 필터로 일부가 가려지면 화면 순서와 실제 배열 순서가 어긋나므로 순서 변경을 막는다. */
+  const isReorderDisabled = filter.hasHiddenItem || isSaving;
+
+  const handleClickDelete = async () => {
+    const targets = selection.selectedItems.map((item) => ({
+      item,
+      order: filter.filteredItems.findIndex((it) => it.id === item.id) + 1,
+    }));
+
+    const isConfirmed = await openModal(<DeleteConfirmModal targets={targets} />);
+
+    // [취소]나 닫기로 빠져나오면 선택 상태를 유지한다.
+    if (!isConfirmed) return;
+
+    await removeItems(selection.selectedItems);
+    selection.clearSelection();
+  };
+
+  const columns: Column[] = [
+    {
+      id: 'select',
+      label: (
+        <Checkbox
+          checked={selection.isAllSelected}
+          onChange={selection.toggleAll}
+          size="small"
+          disabled={filter.filteredItems.length === 0}
+          inputProps={{ 'aria-label': '전체 선택' } as React.InputHTMLAttributes<HTMLInputElement>}
+        />
+      ),
+      width: 48,
+    },
+    { id: 'order', label: '노출순서' },
+    { id: 'image', label: '이미지' },
+    { id: 'name', label: '{항목}명' },
+    { id: 'link', label: '링크' },
+    { id: 'period', label: '노출기간' },
+    { id: 'status', label: '상태' },
+    { id: 'actions', label: '순서 관리' },
+  ];
+
+  const columnRenderMap: ColumnRenderMap<{Domain}> = {
+    select: (row) => (
+      <Checkbox
+        checked={selection.isSelected(row.id)}
+        onChange={() => selection.toggleOne(row.id)}
+        size="small"
+        inputProps={{ 'aria-label': `${row.name} 선택` } as React.InputHTMLAttributes<HTMLInputElement>}
+      />
+    ),
+    order: (row) => filter.filteredItems.findIndex((item) => item.id === row.id) + 1,
+    image: (row) => <img src={row.imageUrl} alt={row.name} style={{ width: 120 }} className="rounded border" />,
+    name: (row) => (
+      <button
+        type="button"
+        className="cursor-pointer border-0 bg-transparent p-0 text-blue-600 underline"
+        onClick={() => history.push(PATH.{DOMAIN_SNAKE}_EDIT.replace(':id', String(row.id)))}
+      >
+        {row.name}
+      </button>
+    ),
+    // 어드민 밖에서 저장된 값이 섞일 수 있으므로, 허용된 형식일 때만 링크로 렌더링한다.
+    link: (row) =>
+      isAllowedLink(row.link) ? (
+        <a
+          href={row.link}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="break-all text-xs text-blue-600 underline"
+        >
+          {row.link}
+        </a>
+      ) : (
+        <span className="break-all text-xs text-gray-600">{row.link}</span>
+      ),
+    period: (row) => (
+      <>
+        {formatItemDateTime(row.startDate)} ~{' '}
+        {isAlwaysOn(row) ? <strong className="text-blue-500">상시</strong> : formatItemDateTime(row.endDate)}
+      </>
+    ),
+    status: (row) => {
+      const statusInfo = STATUS_LABEL[getItemStatus(row, filter.baseDate)];
+      return <Chip label={statusInfo.label} color={statusInfo.color} size="small" />;
+    },
+    actions: (row) => {
+      const index = items.findIndex((item) => item.id === row.id);
+      const isFirst = index === 0;
+      const isLast = index === items.length - 1;
+
+      return (
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outlined"
+            size="small"
+            aria-label={`${row.name} 맨 위로 이동`}
+            onClick={() => moveItem(index, 'top')}
+            disabled={isReorderDisabled || isFirst}
+          >
+            ⤒
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            aria-label={`${row.name} 위로 이동`}
+            onClick={() => moveItem(index, 'up')}
+            disabled={isReorderDisabled || isFirst}
+          >
+            ↑
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            aria-label={`${row.name} 아래로 이동`}
+            onClick={() => moveItem(index, 'down')}
+            disabled={isReorderDisabled || isLast}
+          >
+            ↓
+          </Button>
+          <Button
+            variant="outlined"
+            size="small"
+            aria-label={`${row.name} 맨 아래로 이동`}
+            onClick={() => moveItem(index, 'bottom')}
+            disabled={isReorderDisabled || isLast}
+          >
+            ⤓
+          </Button>
+        </div>
+      );
+    },
+  };
+
+  const availableDelete = !(selection.selectedCount === 0 || isSaving);
+
+  return (
+    <ListTemplate
+      menuTitle="{한글 도메인}"
+      pageTitle="목록"
+      searchFilter={
+        <div className="flex flex-col gap-2">
+          <div style={{ maxWidth: 500 }}>
+            <FormDatePickerField
+              id="baseDate"
+              label="기준일시"
+              labelWidth={80}
+              date={filter.baseDate}
+              setDate={filter.setBaseDate}
+              unit="minutes"
+            />
+          </div>
+          <FormCheckboxGroupField
+            id="statuses"
+            label="상태"
+            labelWidth={80}
+            value={filter.statuses}
+            onChange={filter.setStatuses}
+            showDivider={false}
+          >
+            {ITEM_STATUS_OPTIONS.map((option) => (
+              <FormCheckboxGroupField.Option key={option.value} value={option.value} label={option.label} />
+            ))}
+          </FormCheckboxGroupField>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-400">
+              기준일시 시점의 상태로 판단해 표시합니다. 저장된 데이터에는 영향을 주지 않습니다.
+            </span>
+            <Button variant="outlined" size="small" onClick={filter.resetFilter}>
+              초기화
+            </Button>
+          </div>
+        </div>
+      }
+      dataTable={
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-500">{{DOMAIN_SNAKE}_LIST_GUIDE}</span>
+            <Tooltip title={isMaxCountReached ? MAX_{DOMAIN_SNAKE}_COUNT_TOOLTIP : ''} arrow>
+              <span>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  size="small"
+                  disabled={isMaxCountReached}
+                  style={
+                    isMaxCountReached
+                      ? { backgroundColor: {DOMAIN_SNAKE}_BUTTON_DISABLED_COLOR, color: '#fff' }
+                      : undefined
+                  }
+                  onClick={() => history.push(PATH.{DOMAIN_SNAKE}_CREATE)}
+                >
+                  {항목} 등록
+                </Button>
+              </span>
+            </Tooltip>
+          </div>
+          {isReorderDisabled && filter.hasHiddenItem && (
+            <div className="rounded bg-yellow-50 px-3 py-2 text-sm text-yellow-800">{REORDER_DISABLED_GUIDE}</div>
+          )}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={handleClickDelete}
+                disabled={!availableDelete}
+                style={{
+                  borderColor: availableDelete ? '#f87171' : {DOMAIN_SNAKE}_BUTTON_DISABLED_COLOR,
+                  color: availableDelete ? '#f87171' : {DOMAIN_SNAKE}_BUTTON_DISABLED_COLOR,
+                }}
+              >
+                선택 삭제
+              </Button>
+              {selection.selectedCount > 0 && (
+                <span className="text-sm text-gray-500">{selection.selectedCount}건 선택</span>
+              )}
+              <span className="text-sm text-gray-400">{SELECTION_RESET_GUIDE}</span>
+            </div>
+            <span className="text-sm text-gray-500">
+              현재 등록된 {항목} {items.length} / {MAX_{DOMAIN_SNAKE}_COUNT}개
+            </span>
+          </div>
+          <Table>
+            <Table.Head columns={columns} />
+            <Table.Body
+              columns={columns}
+              data={filter.filteredItems}
+              columnRenderMap={columnRenderMap}
+              rowKey={(row) => String(row.id)}
+              isLoading={isLoading}
+              emptyText={items.length ? '조건에 해당하는 {항목}이 없습니다.' : '등록된 {항목}이 없습니다.'}
+            />
+          </Table>
+        </div>
+      }
+    />
+  );
+}
+
+export default {Domain}ListPage;

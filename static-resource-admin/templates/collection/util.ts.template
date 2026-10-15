@@ -1,0 +1,73 @@
+/**
+ * 목적지: src/app/{domain}/utils/{domain}Util.ts
+ *
+ * 치환:
+ *   {Domain} = PascalCase (항목 타입) (예: NowMainBanner)
+ *   {domain} = camelCase            (예: nowMainBanner)
+ *
+ * 상시 노출이 없으면 ALWAYS_ON_END_DATE / isAlwaysOn 삭제.
+ * 링크 필드가 없으면 isAllowedLink 삭제.
+ */
+import { dayjs } from 'shared/utils/dayjsUtils';
+import type { VersionStatus } from 'app/memberPromotion/utils/versionUtil';
+import type { {Domain} } from 'app/{domain}/data/types/{domain}';
+
+/** 항목 노출 상태 (예정 / 진행중 / 종료) — memberPromotion 의 STATUS_LABEL 재사용 */
+export type ItemStatus = VersionStatus;
+
+/** 상시 노출 항목의 종료 일시 */
+export const ALWAYS_ON_END_DATE = '2099-12-31T23:59:59+09:00';
+
+/** 상시 노출 항목인지 */
+export const isAlwaysOn = (item: {Domain}): boolean => item.endDate === ALWAYS_ON_END_DATE;
+
+/** 입력한 일시를 KST ISO8601 문자열로 변환 (예: 2026-07-01T00:00:00+09:00) */
+export const formatDateToKST = (date: Date | null): string => {
+  if (!date || !dayjs(date).isValid()) {
+    return '';
+  }
+
+  return `${dayjs(date).second(0).format('YYYY-MM-DDTHH:mm:ss')}+09:00`;
+};
+
+/** 노출 기간을 기준으로 항목 상태를 판단. baseDate 가 없으면 현재 시각 */
+export const getItemStatus = (item: {Domain}, baseDate?: Date | null): ItemStatus => {
+  const base = baseDate && dayjs(baseDate).isValid() ? dayjs(baseDate) : dayjs();
+  const start = dayjs(item.startDate);
+  const end = dayjs(item.endDate);
+
+  if (!start.isValid() || !end.isValid()) return 'expired';
+  if (base.isBefore(start)) return 'scheduled';
+  if (base.isAfter(end)) return 'expired';
+  return 'active';
+};
+
+/** 항목을 지정한 노출위치(1-based)에 끼워 넣은 배열을 반환 */
+export const insertItemAtPosition = (items: {Domain}[], item: {Domain}, position: number): {Domain}[] => {
+  const rest = items.filter((it) => it.id !== item.id);
+  const index = Math.min(Math.max(position - 1, 0), rest.length);
+
+  return [...rest.slice(0, index), item, ...rest.slice(index)];
+};
+
+/** 목록에서 사용하지 않는 다음 id를 채번 (최대값 + 1) */
+export const getNextItemId = (items: {Domain}[]): number =>
+  items.reduce((max, item) => Math.max(max, item.id), 0) + 1;
+
+/** URL 파라미터를 id로 변환. 숫자가 아니면 undefined (NaN 이 경로/저장값에 섞이는 것 방지) */
+export const parseItemId = (value?: string): number | undefined => {
+  if (!value) return undefined;
+
+  const id = Number(value);
+  return Number.isInteger(id) ? id : undefined;
+};
+
+/** 링크로 허용할 URL인지 검사 — http(s) 절대 URL 또는 / 로 시작하는 사이트 내 경로만 (javascript: 등 차단) */
+export const isAllowedLink = (link: string): boolean =>
+  /^https?:\/\/\S+$/.test(link) || /^\/[^/\s]\S*$/.test(link);
+
+/** 노출 일시 표시용 문자열 */
+export const formatItemDateTime = (value: string): string => {
+  const parsed = dayjs(value);
+  return parsed.isValid() ? parsed.format('YYYY-MM-DD HH:mm') : '-';
+};

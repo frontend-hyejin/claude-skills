@@ -1,5 +1,7 @@
 /**
- * 목적지: src/app/memberPromotion/pages/{domain}/{Domain}PromotionListPage.tsx
+ * 목적지: {app-dir}/pages/{domain}/{Domain}PromotionListPage.tsx
+ * ⚠️ {app-dir} 가 전용 디렉터리(src/app/{domain})면 pathConstant import 를 'app/{domain}/constants/pathConstant' 로 바꾸고,
+ *    PATH 이름의 `_PROMOTION` 접미어는 뺀다 (menu-registration.md 2단계 참고). dateUtil/uploadUtil/ImageUploadField 는 memberPromotion 경로 유지.
  *
  * 치환:
  *   {Domain}          = PascalCase   (예: WelcomeBenefit)

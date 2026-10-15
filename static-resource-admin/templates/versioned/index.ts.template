@@ -1,5 +1,5 @@
 /**
- * 목적지: src/app/memberPromotion/pages/{domain}/index.ts
+ * 목적지: {app-dir}/pages/{domain}/index.ts
  *
  * 도메인별 페이지 배럴 export.
  * `pages/index.ts`가 이 파일을 통해 `{Domain}.List`, `{Domain}.Default` 등으로 재노출.

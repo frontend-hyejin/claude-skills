@@ -6,7 +6,7 @@
 
 | 이름 | 설명 |
 |---|---|
-| [promotion-admin](./promotion-admin) | LaCMS 회원>프로모션 하위에 새 어드민 페이지 스캐폴딩 (메뉴/라우팅/pathConstant + Query·Form 훅 + 페이지 4종). |
+| [static-resource-admin](./static-resource-admin) | LaCMS에 S3 정적 JSON 어드민 메뉴 스캐폴딩. 버전형(meta+버전 JSON, 회원>프로모션 패턴) / 목록형(배열 JSON, 컬리나우 배너 패턴) 두 패턴, 메뉴 위치 자유. (구 `promotion-admin`) |
 
 ## 사용법
 
@@ -14,13 +14,13 @@ Claude Code에서 스킬을 로드하려면 해당 스킬 폴더를 프로젝트
 
 ```bash
 # 프로젝트별 사용
-cp -r promotion-admin /path/to/project/.claude/skills/
+cp -r static-resource-admin /path/to/project/.claude/skills/
 
 # 사용자 전역 사용
-cp -r promotion-admin ~/.claude/skills/
+cp -r static-resource-admin ~/.claude/skills/
 ```
 
-이후 Claude Code에서 `/promotion-admin` 슬래시 커맨드 또는 자연어로 트리거.
+이후 Claude Code에서 `/static-resource-admin` 슬래시 커맨드 또는 자연어로 트리거.
 
 ## 새 스킬 추가
 
