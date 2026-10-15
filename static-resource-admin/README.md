@@ -139,7 +139,7 @@ static-resource-admin/
 
 **버전형 신규 (7개)** — `use{Domain}Query.ts` · `use{Domain}Form.ts` · `pages/{domain}/` 하위 index + List/Default/Create/Detail (+ `pathConstant.ts` 상수 5종)
 
-**목록형 신규 (9개)** — `constants/pathConstant.ts` · `hooks/` 3개(Query/Form/List) · `utils/{domain}Util.ts` · `components/DeleteConfirmModal.tsx` · `pages/` 3개. 버전형과 같은 골격으로 맞춘 축약 구조이며, 컬리나우 배너관리(19개)보다 잘게 나누지 않음. `util`·`DeleteConfirmModal`을 `app/memberPromotion/`으로 공통화하면 7개가 되지만 이는 사용자가 코드 변경을 요청할 때만 진행
+**목록형 신규 (9개)** — `use{Domain}Query.ts` · `use{Domain}Form.ts` · `use{Domain}List.ts` · `utils/{domain}Util.ts` · `components/DeleteConfirmModal.tsx` · `pages/` 하위 index + List/Form (+ `pathConstant.ts` 신설: S3 경로 + 운영 정책 상수)
 
 ## 지켜야 할 규칙
 
